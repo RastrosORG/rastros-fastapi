@@ -3,6 +3,7 @@ import Login from '../pages/Login'
 import Home from '../pages/Home'
 import Dossies from '../pages/Dossies'
 import Layout from '../components/layout/Layout'
+import Respostas from '../pages/Respostas'
 
 export const router = createBrowserRouter([
   {
@@ -12,6 +13,10 @@ export const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
+      {
+        path: '/respostas',
+        element: <Respostas />,
+      },
       {
         path: '/home',
         element: <Home />,
