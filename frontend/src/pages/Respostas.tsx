@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, FileText, CheckCircle, Clock, XCircle, Paperclip, MessageSquare } from 'lucide-react'
+import { X, FileText, CheckCircle, Clock, XCircle, Paperclip, MessageSquare, CheckCheck } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 
 const fadeUp: Variants = {
@@ -12,12 +12,16 @@ const fadeUp: Variants = {
   }),
 }
 
-type StatusResposta = 'pendente' | 'aprovada' | 'rejeitada'
+// Mock temporário — será substituído pelo authStore depois
+const USER_ROLE: 'user' | 'avaliador' = 'user'
+
+type StatusResposta = 'pendente' | 'aprovada' | 'aprovada_parcial' | 'rejeitada'
 
 interface Avaliacao {
   comentario: string
+  categoriaOriginal?: string
   categoriaNova?: string
-  pontos?: number
+  pontos: number
 }
 
 interface Resposta {
@@ -38,7 +42,17 @@ interface DossieRespostas {
   respostas: Resposta[]
 }
 
-const mock: DossieRespostas[] = [
+const categorias = [
+  { id: 'familia', label: 'Família', pontos: 10 },
+  { id: 'info_basicas', label: 'Informações Básicas', pontos: 15 },
+  { id: 'info_avancadas', label: 'Informações Avançadas', pontos: 30 },
+  { id: 'dia_desaparecimento', label: 'Dia do Desaparecimento', pontos: 25 },
+  { id: 'atividades_pos', label: 'Atividades Pós-Desaparecimento', pontos: 35 },
+  { id: 'darkweb', label: 'Dark Web', pontos: 50 },
+  { id: 'localizacao', label: 'Localização', pontos: 60 },
+]
+
+const mockInicial: DossieRespostas[] = [
   {
     id: 1,
     nome: 'Jack Dawson',
@@ -46,36 +60,43 @@ const mock: DossieRespostas[] = [
       {
         id: 1,
         titulo: 'Contato com familiar identificado',
-        descricao: 'Conseguimos localizar a irmã de Jack Dawson, Mary Dawson, residente em Southampton. Ela confirmou que Jack saiu de casa na noite do dia 10 após receber uma ligação desconhecida.',
-        categoria: 'Família',
+        descricao: 'Conseguimos localizar a irmã de Jack Dawson, Mary Dawson, residente em Southampton.',
+        categoria: 'familia',
         arquivos: ['contato_mary.pdf', 'print_ligacao.png'],
         dataEnvio: '01/04/2026 14:32',
         status: 'aprovada',
         avaliacao: {
-          comentario: 'Boa investigação. A informação sobre a ligação é relevante para o caso.',
+          comentario: 'Boa investigação. Informação relevante para o caso.',
           pontos: 10,
         },
       },
       {
         id: 2,
         titulo: 'Localização aproximada via câmera',
-        descricao: 'Identificamos Jack em imagens de câmera de segurança no porto de Southampton às 23h do dia 10.',
-        categoria: 'Localização',
+        descricao: 'Identificamos Jack em imagens de câmera de segurança no porto de Southampton às 23h.',
+        categoria: 'localizacao',
         link: 'https://maps.google.com',
         arquivos: ['camera_porto.mp4'],
         dataEnvio: '01/04/2026 15:10',
-        status: 'pendente',
+        status: 'aprovada_parcial',
+        avaliacao: {
+          comentario: 'Resposta aprovada, porém a categoria foi corrigida. A informação se encaixa em "Dia do Desaparecimento", não em "Localização".',
+          categoriaOriginal: 'localizacao',
+          categoriaNova: 'dia_desaparecimento',
+          pontos: 25,
+        },
       },
       {
         id: 3,
         titulo: 'Registro em hotel próximo ao porto',
-        descricao: 'Encontramos registro de hospedagem em nome de J. Dawson no Hotel Mariner, a 200m do porto.',
-        categoria: 'Informações Básicas',
+        descricao: 'Encontramos registro de hospedagem em nome de J. Dawson no Hotel Mariner.',
+        categoria: 'info_basicas',
         arquivos: ['registro_hotel.pdf'],
         dataEnvio: '01/04/2026 16:45',
         status: 'rejeitada',
         avaliacao: {
-          comentario: 'O registro não corresponde ao mesmo período do desaparecimento. Revisem a data.',
+          comentario: 'O registro não corresponde ao período do desaparecimento.',
+          pontos: 0,
         },
       },
     ],
@@ -87,9 +108,9 @@ const mock: DossieRespostas[] = [
       {
         id: 4,
         titulo: 'Manifesto do voo MH370',
-        descricao: 'Conseguimos o manifesto do voo em que Chuck embarcou. Ele estava listado como passageiro na poltrona 14C.',
-        categoria: 'Dia do Desaparecimento',
-        arquivos: ['manifesto_voo.pdf', 'boarding_pass.png'],
+        descricao: 'Conseguimos o manifesto do voo em que Chuck embarcou.',
+        categoria: 'dia_desaparecimento',
+        arquivos: ['manifesto_voo.pdf'],
         dataEnvio: '01/04/2026 13:00',
         status: 'pendente',
       },
@@ -113,6 +134,11 @@ const statusConfig = {
     icon: CheckCircle,
     className: 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10',
   },
+  aprovada_parcial: {
+    label: 'Aprovada Parcialmente',
+    icon: CheckCheck,
+    className: 'text-orange-400 border-orange-400/30 bg-orange-400/10',
+  },
   rejeitada: {
     label: 'Rejeitada',
     icon: XCircle,
@@ -134,9 +160,13 @@ export default function Respostas() {
     setDossieModal('')
   }
 
-  const totalEnviadas = mock.reduce((acc, d) => acc + d.respostas.length, 0)
-  const totalAprovadas = mock.reduce((acc, d) => acc + d.respostas.filter(r => r.status === 'aprovada').length, 0)
-  const totalPendentes = mock.reduce((acc, d) => acc + d.respostas.filter(r => r.status === 'pendente').length, 0)
+  const totalEnviadas = mockInicial.reduce((acc, d) => acc + d.respostas.length, 0)
+  const totalAprovadas = mockInicial.reduce((acc, d) =>
+    acc + d.respostas.filter(r => r.status === 'aprovada' || r.status === 'aprovada_parcial').length, 0)
+  const totalPendentes = mockInicial.reduce((acc, d) =>
+    acc + d.respostas.filter(r => r.status === 'pendente').length, 0)
+  const totalPontos = mockInicial.reduce((acc, d) =>
+    acc + d.respostas.reduce((a, r) => a + (r.avaliacao?.pontos ?? 0), 0), 0)
 
   return (
     <div className="relative flex flex-col min-h-full">
@@ -178,11 +208,12 @@ export default function Respostas() {
 
         {/* Resumo */}
         <motion.div variants={fadeUp} custom={1} initial="hidden" animate="show"
-          className="grid grid-cols-3 gap-4 w-full max-w-2xl">
+          className="grid grid-cols-4 gap-4 w-full max-w-3xl">
           {[
             { label: 'Enviadas', value: totalEnviadas, cor: 'text-foreground' },
             { label: 'Aprovadas', value: totalAprovadas, cor: 'text-emerald-400' },
             { label: 'Pendentes', value: totalPendentes, cor: 'text-yellow-400' },
+            { label: 'Pontos', value: totalPontos, cor: 'text-primary' },
           ].map((s) => (
             <div key={s.label}
               className="bg-card/70 border border-border rounded-xl p-4 flex flex-col items-center gap-1">
@@ -194,11 +225,10 @@ export default function Respostas() {
 
         {/* Dossiês */}
         <div className="flex flex-col gap-8 w-full max-w-4xl">
-          {mock.map((dossie, di) => (
+          {mockInicial.map((dossie, di) => (
             <motion.div key={dossie.id} variants={fadeUp} custom={di + 2} initial="hidden" animate="show"
               className="flex flex-col gap-3">
 
-              {/* Header do dossiê */}
               <div className="flex items-center gap-3">
                 <span className="text-xs font-mono text-primary/60">#{String(dossie.id).padStart(2, '0')}</span>
                 <h2 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>
@@ -210,7 +240,6 @@ export default function Respostas() {
                 </span>
               </div>
 
-              {/* Respostas do dossiê */}
               {dossie.respostas.length === 0 ? (
                 <div className="bg-card/40 border border-dashed border-border rounded-xl p-6 text-center">
                   <p className="text-muted-foreground/50 font-mono text-sm italic">
@@ -232,7 +261,9 @@ export default function Respostas() {
                             {r.titulo}
                           </span>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs font-mono text-primary/60">{r.categoria}</span>
+                            <span className="text-xs font-mono text-primary/60">
+                              {categorias.find(c => c.id === r.categoria)?.label ?? r.categoria}
+                            </span>
                             <span className="text-xs font-mono text-muted-foreground/50">·</span>
                             <span className="text-xs font-mono text-muted-foreground/60">{r.dataEnvio}</span>
                           </div>
@@ -261,9 +292,17 @@ export default function Respostas() {
             </motion.div>
           ))}
         </div>
+
+        {/* Área futura do avaliador — visível só pra avaliador */}
+        {USER_ROLE === 'avaliador' && (
+          <div className="w-full max-w-4xl">
+            {/* Ewerton vai implementar aqui */}
+          </div>
+        )}
+
       </div>
 
-      {/* Modal da resposta */}
+      {/* Modal */}
       <AnimatePresence>
         {modalResposta && (
           <>
@@ -284,11 +323,8 @@ export default function Respostas() {
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-primary/20 bg-black/40">
                   <div>
-                    <p className="text-xs font-mono text-primary/70 tracking-widest uppercase">
-                      {dossieModal}
-                    </p>
-                    <h3 className="text-white font-bold text-lg mt-0.5"
-                      style={{ fontFamily: 'Syne, sans-serif' }}>
+                    <p className="text-xs font-mono text-primary/70 tracking-widest uppercase">{dossieModal}</p>
+                    <h3 className="text-white font-bold text-lg mt-0.5" style={{ fontFamily: 'Syne, sans-serif' }}>
                       {modalResposta.titulo}
                     </h3>
                   </div>
@@ -311,13 +347,13 @@ export default function Respostas() {
                   </div>
                 </div>
 
-                {/* Corpo */}
                 <div className="p-6 flex flex-col gap-5 bg-[#0f0f14]">
 
-                  {/* Detalhes */}
                   <div className="flex flex-col gap-1.5">
                     <p className="text-xs font-mono text-foreground/60 tracking-widest uppercase">Categoria</p>
-                    <span className="text-primary font-mono text-sm">{modalResposta.categoria}</span>
+                    <span className="text-primary font-mono text-sm">
+                      {categorias.find(c => c.id === modalResposta.categoria)?.label ?? modalResposta.categoria}
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -335,7 +371,6 @@ export default function Respostas() {
                     </div>
                   )}
 
-                  {/* Arquivos */}
                   <div className="flex flex-col gap-2">
                     <p className="text-xs font-mono text-foreground/60 tracking-widest uppercase">Arquivos Anexados</p>
                     <div className="flex flex-col gap-1.5">
@@ -344,48 +379,60 @@ export default function Respostas() {
                           className="flex items-center gap-2 px-3 py-2 bg-secondary/50 
                                      rounded-lg cursor-pointer hover:bg-secondary transition-colors group">
                           <FileText size={13} className="text-primary/60 group-hover:text-primary transition-colors" />
-                          <span className="text-sm font-mono text-foreground/80 group-hover:text-foreground transition-colors">
-                            {arq}
-                          </span>
+                          <span className="text-sm font-mono text-foreground/80 group-hover:text-foreground transition-colors">{arq}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   <div className="flex justify-end">
-                    <span className="text-xs font-mono text-muted-foreground/50">
-                      Enviado em {modalResposta.dataEnvio}
-                    </span>
+                    <span className="text-xs font-mono text-muted-foreground/50">Enviado em {modalResposta.dataEnvio}</span>
                   </div>
 
-                  {/* Avaliação do avaliador */}
+                  {/* Avaliação */}
                   {modalResposta.avaliacao && (
                     <div className={`flex flex-col gap-3 mt-2 p-4 rounded-xl border ${
                       modalResposta.status === 'aprovada'
                         ? 'bg-emerald-950/40 border-emerald-500/20'
+                        : modalResposta.status === 'aprovada_parcial'
+                        ? 'bg-orange-950/40 border-orange-400/20'
                         : 'bg-destructive/10 border-destructive/20'
                     }`}>
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-mono tracking-widest uppercase flex items-center gap-2"
-                          style={{ color: modalResposta.status === 'aprovada' ? '#34d399' : 'var(--destructive)' }}>
+                          style={{
+                            color: modalResposta.status === 'aprovada'
+                              ? '#34d399'
+                              : modalResposta.status === 'aprovada_parcial'
+                              ? '#fb923c'
+                              : 'var(--destructive)'
+                          }}>
                           <MessageSquare size={12} />
                           Avaliação do Avaliador
                         </p>
-                        {modalResposta.avaliacao.pontos && (
-                          <span className="text-xs font-mono text-primary border border-primary/30 
-                                           rounded px-2 py-0.5">
+                        {modalResposta.avaliacao.pontos > 0 && (
+                          <span className="text-xs font-mono text-primary border border-primary/30 rounded px-2 py-0.5">
                             +{modalResposta.avaliacao.pontos} pts
                           </span>
                         )}
                       </div>
+
                       <p className="text-sm text-foreground/80 leading-relaxed">
                         {modalResposta.avaliacao.comentario}
                       </p>
+
+                      {/* Mostra mudança de categoria se houver */}
                       {modalResposta.avaliacao.categoriaNova && (
-                        <p className="text-xs font-mono text-muted-foreground">
-                          Categoria alterada para:{' '}
-                          <span className="text-primary">{modalResposta.avaliacao.categoriaNova}</span>
-                        </p>
+                        <div className="flex items-center gap-2 text-xs font-mono mt-1">
+                          <span className="text-muted-foreground">Categoria corrigida:</span>
+                          <span className="text-muted-foreground/50 line-through">
+                            {categorias.find(c => c.id === modalResposta.avaliacao?.categoriaOriginal)?.label}
+                          </span>
+                          <span className="text-orange-400">→</span>
+                          <span className="text-orange-400">
+                            {categorias.find(c => c.id === modalResposta.avaliacao?.categoriaNova)?.label}
+                          </span>
+                        </div>
                       )}
                     </div>
                   )}
