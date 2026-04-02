@@ -3,7 +3,7 @@ import { ClipboardList, Activity, Trophy, FileSearch, Users } from 'lucide-react
 import { useNavigate } from 'react-router-dom'
 import type { Variants } from 'framer-motion'
 
-const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+const USER_ROLE: 'user' | 'avaliador' = 'user'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -164,7 +164,7 @@ function HomeUsuario() {
         <div className="absolute top-0 left-0 right-0 h-[60%]">
           <div
             className="w-full h-full bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: `url('/bg-operacao.jpg')` }}
+            style={{ backgroundImage: `url('/inicio.png')` }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-[#0d0d0f]" />
         </div>
