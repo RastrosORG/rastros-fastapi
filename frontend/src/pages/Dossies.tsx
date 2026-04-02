@@ -4,8 +4,8 @@ import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plu
 import type { Variants } from 'framer-motion'
 
 // ── Mocks — substituídos pelo store depois ──────────────────────
-const USER_ROLE: 'user' | 'avaliador' = 'user'
-const CRONOMETRO_ATIVO = false
+const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+const CRONOMETRO_ATIVO = true
 
 // ── Lazy loading dos modais exclusivos ─────────────────────────
 const ModalRespostaUsuario = lazy(() => import('../components/dossies/ModalRespostaUsuario'))
