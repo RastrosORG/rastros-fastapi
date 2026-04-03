@@ -4,6 +4,7 @@ import Home from '../pages/Home'
 import Dossies from '../pages/Dossies'
 import Layout from '../components/layout/Layout'
 import Respostas from '../pages/Respostas'
+import GerenciarGrupos from '../pages/GerenciarGrupos'
 
 export const router = createBrowserRouter([
   {
@@ -24,6 +25,10 @@ export const router = createBrowserRouter([
       {
         path: '/dossies',
         element: <Dossies />,
+      },
+      {
+        path: '/grupos',         
+        element: <GerenciarGrupos />,
       },
     ],
   },

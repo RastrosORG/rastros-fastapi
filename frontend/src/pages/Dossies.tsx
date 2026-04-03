@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X } from 'lucide-react'
 import type { Variants } from 'framer-motion'
+import { User } from 'lucide-react'
 
 // ── Mocks — substituídos pelo store depois ──────────────────────
 const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
@@ -10,6 +11,9 @@ const CRONOMETRO_ATIVO = true
 // ── Lazy loading dos modais exclusivos ─────────────────────────
 const ModalRespostaUsuario = lazy(() => import('../components/dossies/ModalRespostaUsuario'))
 const ModalGerenciarAvaliador = lazy(() => import('../components/dossies/ModalGerenciarAvaliador'))
+const ModalFoto = lazy(() => import('../components/dossies/ModalFoto'))
+const ModalMapa = lazy(() => import('../components/dossies/ModalMapa'))
+const ModalDetalhesDossie = lazy(() => import('../components/dossies/ModalDetalhesDossie'))
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -19,13 +23,29 @@ const fadeUp: Variants = {
   }),
 }
 
+function calcularIdade(dataNascimento: string): number {
+  const hoje = new Date()
+  const nascimento = new Date(dataNascimento)
+  let idade = hoje.getFullYear() - nascimento.getFullYear()
+  const mesAtual = hoje.getMonth()
+  const mesNasc = nascimento.getMonth()
+  if (mesAtual < mesNasc || (mesAtual === mesNasc && hoje.getDate() < nascimento.getDate())) {
+    idade--
+  }
+  return idade
+}
+
 interface Dossie {
   id: number
   nome: string
   descricao: string
+  data_nascimento?: string
   data_desaparecimento: string
   local: string
+  coordenadas?: string
+  foto?: string
   arquivos: string[]
+  arquivosAvaliador: string[]
   equipes: string[]
   respostas: number
   status: 'ativo' | 'arquivado'
@@ -42,17 +62,25 @@ interface FormResposta {
 interface FormDossie {
   nome: string
   descricao: string
+  data_nascimento: string
   data_desaparecimento: string
   local: string
+  coordenadas: string
+  foto?: File | null
+  arquivosAvaliador: File[]
 }
 
 const formRespostaVazio: FormResposta = { titulo: '', descricao: '', link: '', categoria: '', arquivos: [] }
-const formDossieVazio: FormDossie = { nome: '', descricao: '', data_desaparecimento: '', local: '' }
+const formDossieVazio: FormDossie = {
+  nome: '', descricao: '', data_nascimento: '',
+  data_desaparecimento: '', local: '', coordenadas: '',
+  foto: null, arquivosAvaliador: []
+}
 
 const mockDossies: Dossie[] = [
-  { id: 1, nome: 'Jack Dawson', descricao: 'Jack Dawson é um jovem de 22 anos que desapareceu na cidade de Southampton após ganhar uma aposta em bar local.', data_desaparecimento: '1912-04-10', local: 'Southampton, Inglaterra', arquivos: ['jack.webp', 'mapa-southampton.png'], equipes: ['Turma do Scooby-Doo'], respostas: 7, status: 'ativo' },
-  { id: 2, nome: 'Chuck Noland', descricao: 'Chuck Noland é um adulto de 45 anos desaparecido após voo para a Malásia. Última localização em Memphis, Tennessee.', data_desaparecimento: '1995-11-22', local: 'Memphis, Tennessee - EUA', arquivos: ['chuck.png', 'noiva.png'], equipes: [], respostas: 12, status: 'ativo' },
-  { id: 3, nome: 'Lucy Withmore', descricao: 'Lucy Withmore é uma jovem de 25 anos com perda de memória recente. Desaparecida na ilha de Oahu, Havaí.', data_desaparecimento: '2024-03-15', local: 'Oahu, Havaí - EUA', arquivos: ['lucy.png', 'lucy-vi.mp4'], equipes: [], respostas: 3, status: 'arquivado' },
+  { id: 1, nome: 'Jack Dawson', descricao: 'Jack Dawson é um jovem de 22 anos que desapareceu na cidade de Southampton após ganhar uma aposta em bar local. Testemunhas relatam que ele havia acabado de ganhar uma passagem de navio em um jogo de cartas e estava comemorando com amigos quando foi visto pela última vez saindo em direção ao porto. Sua família, residente em Chippewa Falls, Wisconsin, não teve mais notícias desde então.', data_nascimento: '1890-04-10', data_desaparecimento: '1912-04-10', local: 'Southampton, Inglaterra', coordenadas: '50.9097,-1.4044', foto: 'https://static.wikia.nocookie.net/jamescameronstitanic/images/c/c6/Untitledaksjk.png/revision/latest?cb=20130918130638', arquivos: ['jack.webp', 'mapa-southampton.png'], arquivosAvaliador: ['relatorio-testemunhas.pdf'], equipes: ['Turma do Scooby-Doo'], respostas: 7, status: 'ativo' },
+  { id: 2, nome: 'Chuck Noland', descricao: 'Chuck Noland é um adulto de 45 anos desaparecido após voo para a Malásia. Última localização registrada em Memphis, Tennessee. Trabalhava como executivo da FedEx e estava em viagem de negócios quando a aeronave desapareceu dos radares sobre o Oceano Pacífico. Sua noiva, Kelly Frears, registrou o desaparecimento após não receber nenhum contato desde a data da partida.', data_nascimento: '1950-11-05', data_desaparecimento: '1995-11-22', local: 'Memphis, EUA', coordenadas: '35.1495,-90.0490', foto: 'https://cinreservas.com/wp-content/uploads/2021/02/31-1024x554.png', arquivos: ['chuck.png'], arquivosAvaliador: [], equipes: [], respostas: 12, status: 'ativo' },
+  { id: 3, nome: 'Lucy Withmore', descricao: 'Lucy Withmore é uma jovem de 25 anos com perda de memória recente. Desaparecida na ilha de Oahu, Havaí. Sofre de amnésia anterógrada, condição que a impede de formar novas memórias. Foi vista pela última vez em uma praia próxima a Honolulu, usando vestido amarelo. Familiares pedem que qualquer pessoa com informações entre em contato imediatamente.', data_nascimento: '1999-06-22', data_desaparecimento: '2024-03-15', local: 'Oahu, Havaí', coordenadas: '21.3069,-157.8583', foto: 'https://static.wikia.nocookie.net/disabledcharacters/images/3/32/LucyWhitmore.jpg/revision/latest?cb=20230712125423', arquivos: ['lucy.png'], arquivosAvaliador: ['ficha-medica.pdf'], equipes: [], respostas: 3, status: 'arquivado' },
 ]
 
 // ── Fundo compartilhado ─────────────────────────────────────────
@@ -89,6 +117,9 @@ export default function Dossies() {
   const [formDossie, setFormDossie] = useState<FormDossie>(formDossieVazio)
   const [confirmandoArquivar, setConfirmandoArquivar] = useState<number | null>(null)
   const [filtro, setFiltro] = useState<'todos' | 'ativo' | 'arquivado'>('todos')
+  const [modalFoto, setModalFoto] = useState<{ nome: string; url: string } | null>(null)
+  const [modalMapa, setModalMapa] = useState<{ local: string; coordenadas: string } | null>(null)
+  const [modalDetalhes, setModalDetalhes] = useState<Dossie | null>(null)
 
   const dossieFiltrados = USER_ROLE === 'avaliador'
     ? dossies.filter(d => filtro === 'todos' ? true : d.status === filtro)
@@ -121,19 +152,58 @@ export default function Dossies() {
   function abrirCriar() { setFormDossie(formDossieVazio); setDossieEditando(null); setModalModo('criar') }
 
   function abrirEditar(d: Dossie) {
-    setFormDossie({ nome: d.nome, descricao: d.descricao, data_desaparecimento: d.data_desaparecimento, local: d.local })
-    setDossieEditando(d); setModalModo('editar')
-  }
+    setFormDossie({
+        nome: d.nome,
+        descricao: d.descricao,
+        data_nascimento: d.data_nascimento ?? '',
+        data_desaparecimento: d.data_desaparecimento,
+        local: d.local,
+        coordenadas: d.coordenadas ?? '',
+        foto: null,
+        arquivosAvaliador: [],
+    })
+    setDossieEditando(d)
+    setModalModo('editar')
+    }
 
   function salvarDossie() {
     if (!formDossie.nome.trim() || !formDossie.descricao.trim()) return
+    
+    const fotoUrl = formDossie.foto
+        ? URL.createObjectURL(formDossie.foto)
+        : undefined
+
     if (modalModo === 'criar') {
-      setDossies(prev => [...prev, { ...formDossie, id: Date.now(), arquivos: [], equipes: [], respostas: 0, status: 'ativo' }])
+        setDossies(prev => [...prev, {
+        nome: formDossie.nome,
+        descricao: formDossie.descricao,
+        data_desaparecimento: formDossie.data_desaparecimento,
+        local: formDossie.local,
+        coordenadas: formDossie.coordenadas,
+        foto: fotoUrl,
+        arquivos: [],
+        arquivosAvaliador: formDossie.arquivosAvaliador.map(f => f.name),
+        equipes: [],
+        respostas: 0,
+        status: 'ativo',
+        id: Date.now(),
+        }])
     } else if (dossieEditando) {
-      setDossies(prev => prev.map(d => d.id === dossieEditando.id ? { ...d, ...formDossie } : d))
+        setDossies(prev => prev.map(d => d.id === dossieEditando.id ? {
+        ...d,
+        nome: formDossie.nome,
+        descricao: formDossie.descricao,
+        data_desaparecimento: formDossie.data_desaparecimento,
+        local: formDossie.local,
+        coordenadas: formDossie.coordenadas,
+        foto: fotoUrl ?? d.foto,
+        arquivosAvaliador: formDossie.arquivosAvaliador.length > 0
+            ? formDossie.arquivosAvaliador.map(f => f.name)
+            : d.arquivosAvaliador,
+        } : d))
     }
     setModalModo(null)
-  }
+    }
 
   function arquivar(id: number) {
     setDossies(prev => prev.map(d => d.id === id ? { ...d, status: d.status === 'ativo' ? 'arquivado' : 'ativo' } : d))
@@ -279,8 +349,14 @@ export default function Dossies() {
                     </span>
                   </div>
 
-                  <p className="text-muted-foreground text-sm leading-relaxed line-clamp-3">{d.descricao}</p>
-
+                  <div className="flex flex-col gap-1">
+                    <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{d.descricao}</p>
+                    <button onClick={() => setModalDetalhes(d)}
+                        className="text-xs text-primary/60 hover:text-primary font-mono tracking-widest
+                                text-left transition-colors uppercase">
+                        Ver mais →
+                    </button>
+                    </div>
                   {/* Arquivos — só usuário vê */}
                   {USER_ROLE === 'user' && (
                     <div className="flex flex-col gap-2 mt-1">
@@ -298,21 +374,80 @@ export default function Dossies() {
 
                   {/* Metadados — avaliador vê */}
                   {USER_ROLE === 'avaliador' && (
-                    <div className="flex flex-col gap-2 mt-1 text-xs font-mono text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={13} className="text-primary/60" />
-                        <span>{new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin size={13} className="text-primary/60" />
-                        <span>{d.local}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MessageSquare size={13} className="text-primary/60" />
-                        <span>{d.respostas} resposta{d.respostas !== 1 ? 's' : ''} recebida{d.respostas !== 1 ? 's' : ''}</span>
-                      </div>
+                    <div className="flex gap-3 mt-1">
+
+                        {/* Foto */}
+                        <button
+                        onClick={() => d.foto ? setModalFoto({ nome: d.nome, url: d.foto }) : undefined}
+                        className={`shrink-0 w-16 h-16 rounded-lg border overflow-hidden
+                                    flex items-center justify-center transition-all
+                                    ${d.foto
+                                        ? 'border-primary/30 hover:border-primary cursor-pointer'
+                                        : 'border-border cursor-default bg-input'
+                                    }`}
+                        title={d.foto ? 'Ver foto' : 'Sem foto'}
+                        >
+                        {d.foto
+                            ? <img
+                                src={d.foto}
+                                alt={d.nome}
+                                loading="lazy"
+                                className="w-full h-full object-cover"
+                            />
+                            : <User size={22} className="text-muted-foreground/30" />
+                        }
+                        </button>
+
+                        {/* Separador vertical */}
+                        <div className="w-px bg-primary/20 self-stretch shrink-0" />
+
+                        {/* Metadados */}
+                        <div className="flex flex-col gap-1.5 text-xs font-mono text-muted-foreground flex-1">
+                        <div className="flex items-center gap-2">
+                            <Calendar size={13} className="text-primary/60 shrink-0" />
+                            <span>Desap.: {new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            {d.data_nascimento && (
+                            <div className="flex items-center gap-2">
+                                <Calendar size={13} className="text-primary/60 shrink-0 opacity-50" />
+                                <span>
+                                Nasc.: {new Date(d.data_nascimento).toLocaleDateString('pt-BR')}
+                                <span className="text-muted-foreground/50 ml-1">
+                                    ({calcularIdade(d.data_nascimento)} anos)
+                                </span>
+                                </span>
+                            </div>
+                            )}
+                        <button
+                            onClick={() => d.coordenadas ? setModalMapa({ local: d.local, coordenadas: d.coordenadas }) : undefined}
+                            className={`flex items-center gap-2 text-left transition-colors
+                                        ${d.coordenadas ? 'hover:text-primary cursor-pointer' : 'cursor-default'}`}
+                        >
+                            <MapPin size={13} className="text-primary/60 shrink-0" />
+                            <span className={d.coordenadas ? 'underline underline-offset-2 decoration-primary/40' : ''}>
+                            {d.local}
+                            </span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <MessageSquare size={13} className="text-primary/60 shrink-0" />
+                            <span>{d.respostas} resposta{d.respostas !== 1 ? 's' : ''}</span>
+                        </div>
+
+                        {/* Arquivos de apoio — abre o modal de detalhes */}
+                        {d.arquivosAvaliador.length > 0 && (
+                            <button
+                            onClick={() => setModalDetalhes(d)}
+                            className="flex items-center gap-2 text-left hover:text-primary transition-colors"
+                            >
+                            <Paperclip size={13} className="text-primary/60 shrink-0" />
+                            <span className="underline underline-offset-2 decoration-primary/40">
+                                {d.arquivosAvaliador.length} arquivo{d.arquivosAvaliador.length !== 1 ? 's' : ''} de apoio
+                            </span>
+                            </button>
+                        )}
+                        </div>
                     </div>
-                  )}
+                    )}
 
                   {/* Equipes — só usuário vê */}
                   {USER_ROLE === 'user' && (
@@ -394,6 +529,45 @@ export default function Dossies() {
             />
           )}
         </AnimatePresence>
+
+        <AnimatePresence>
+            {modalFoto && (
+                <ModalFoto
+                nome={modalFoto.nome}
+                foto={modalFoto.url}
+                onFechar={() => setModalFoto(null)}
+                />
+            )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+            {modalMapa && (
+                <ModalMapa
+                local={modalMapa.local}
+                coordenadas={modalMapa.coordenadas}
+                onFechar={() => setModalMapa(null)}
+                />
+            )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+            {modalDetalhes && (
+                <ModalDetalhesDossie
+                dossie={modalDetalhes}
+                userRole={USER_ROLE}
+                onFechar={() => setModalDetalhes(null)}
+                onAbrirMapa={() => {
+                    if (modalDetalhes.coordenadas)
+                    setModalMapa({ local: modalDetalhes.local, coordenadas: modalDetalhes.coordenadas })
+                }}
+                onAbrirFoto={() => {
+                    if (modalDetalhes.foto)
+                    setModalFoto({ nome: modalDetalhes.nome, url: modalDetalhes.foto })
+                }}
+                />
+            )}
+        </AnimatePresence>
+        
       </Suspense>
 
       {/* Modal confirmação arquivar */}
