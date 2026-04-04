@@ -5,6 +5,7 @@ import Dossies from '../pages/Dossies'
 import Layout from '../components/layout/Layout'
 import Respostas from '../pages/Respostas'
 import GerenciarGrupos from '../pages/GerenciarGrupos'
+import AvaliarRespostas from '../pages/AvaliarRespostas'
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +30,10 @@ export const router = createBrowserRouter([
       {
         path: '/grupos',         
         element: <GerenciarGrupos />,
+      },
+      {
+        path: '/avaliar',
+        element: <AvaliarRespostas />,
       },
     ],
   },
