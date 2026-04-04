@@ -6,6 +6,8 @@ import Layout from '../components/layout/Layout'
 import Respostas from '../pages/Respostas'
 import GerenciarGrupos from '../pages/GerenciarGrupos'
 import AvaliarRespostas from '../pages/AvaliarRespostas'
+import Grupo from '../pages/Grupo'
+import Pontuacao from '../pages/Pontuacao'
 
 export const router = createBrowserRouter([
   {
@@ -15,6 +17,14 @@ export const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
+      {
+        path: '/pontuacao',
+        element: <Pontuacao />,
+      },
+      {
+        path: '/grupo',
+        element: <Grupo />,
+      },
       {
         path: '/respostas',
         element: <Respostas />,

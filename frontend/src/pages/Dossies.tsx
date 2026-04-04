@@ -5,7 +5,7 @@ import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
 
 // ── Mocks — substituídos pelo store depois ──────────────────────
-const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+const USER_ROLE: 'user' | 'avaliador' = 'user'
 const CRONOMETRO_ATIVO = true
 
 // ── Lazy loading dos modais exclusivos ─────────────────────────
