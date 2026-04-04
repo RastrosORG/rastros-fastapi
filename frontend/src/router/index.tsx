@@ -6,8 +6,12 @@ import Layout from '../components/layout/Layout'
 import Respostas from '../pages/Respostas'
 import GerenciarGrupos from '../pages/GerenciarGrupos'
 import AvaliarRespostas from '../pages/AvaliarRespostas'
+<<<<<<< HEAD
 import Grupo from '../pages/Grupo'
 import Pontuacao from '../pages/Pontuacao'
+=======
+import ChatAvaliador from '../pages/ChatAvaliador'
+>>>>>>> edd3a90 (Chat atualizado)
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +48,10 @@ export const router = createBrowserRouter([
       {
         path: '/avaliar',
         element: <AvaliarRespostas />,
+      },
+      {
+        path: '/chat',
+        element: <ChatAvaliador />,
       },
     ],
   },
