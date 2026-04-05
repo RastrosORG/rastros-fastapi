@@ -2,6 +2,9 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ChatWidget from '../chat/ChatWidget'
 
+// Mock — substituir pelo authStore depois
+const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+
 export default function Layout() {
   return (
     <div className="flex h-screen bg-background text-foreground relative">
@@ -20,7 +23,7 @@ export default function Layout() {
       <main className="flex-1 overflow-auto relative z-10">
         <Outlet />
       </main>
-      <ChatWidget />
+      {USER_ROLE === 'user' && <ChatWidget />}
     </div>
   )
 }
