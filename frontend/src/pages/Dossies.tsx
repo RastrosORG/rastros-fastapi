@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
 
 // ── Mocks — substituídos pelo store depois ──────────────────────
-const USER_ROLE: 'user' | 'avaliador' = 'user'
 const CRONOMETRO_ATIVO = true
 
 // ── Lazy loading dos modais exclusivos ─────────────────────────
@@ -106,6 +106,8 @@ function Fundo() {
 }
 
 export default function Dossies() {
+  const usuario = useAuthStore(state => state.usuario)
+  const USER_ROLE = usuario?.is_avaliador ? 'avaliador' : 'user'
   const [dossies, setDossies] = useState<Dossie[]>(mockDossies)
   const [modalDossie, setModalDossie] = useState<Dossie | null>(null)
   const [formResposta, setFormResposta] = useState<FormResposta>(formRespostaVazio)

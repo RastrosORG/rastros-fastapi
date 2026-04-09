@@ -1,11 +1,13 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ChatWidget from '../chat/ChatWidget'
-
-// Mock — substituir pelo authStore depois
-const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+import { useAuthStore } from '../../store/authStore'
+import type { AuthState } from '../../store/authStore'
 
 export default function Layout() {
+  const usuario = useAuthStore((state: AuthState) => state.usuario)
+  const USER_ROLE = usuario?.is_avaliador ? 'avaliador' : 'user'
+
   return (
     <div className="flex h-screen bg-background text-foreground relative">
       <div className="absolute inset-0 pointer-events-none"

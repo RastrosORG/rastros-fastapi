@@ -1,8 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Home, Users, Trophy, FileText, MessageSquare, LogOut, User, ClipboardList } from 'lucide-react'
-
-// Mock — substituir pelo authStore depois
-const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+import { useAuthStore } from '../../store/authStore'
 
 const navUsuario = [
   { to: '/home', icon: Home, label: 'Home' },
@@ -21,7 +19,15 @@ const navAvaliador = [
 ]
 
 export default function Sidebar() {
-  const nav = USER_ROLE === 'avaliador' ? navAvaliador : navUsuario
+  const usuario = useAuthStore(state => state.usuario)
+  const logout = useAuthStore(state => state.logout)
+  const navigate = useNavigate()
+  const nav = usuario?.is_avaliador ? navAvaliador : navUsuario
+
+  function handleLogout() {
+    logout()
+    navigate('/')
+  }
 
   return (
     <aside className="flex flex-col items-center w-16 h-screen bg-sidebar border-r border-sidebar-border py-4 gap-2 shrink-0"
@@ -62,7 +68,9 @@ export default function Sidebar() {
         >
           <User size={20} />
         </NavLink>
-        <button title="Sair"
+        <button
+          onClick={handleLogout}
+          title="Sair"
           className="p-3 rounded-lg text-sidebar-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200">
           <LogOut size={20} />
         </button>

@@ -2,9 +2,7 @@ import { motion } from 'framer-motion'
 import { ClipboardList, Activity, Trophy, FileSearch, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Variants } from 'framer-motion'
-
-// Mock — substituir pelo authStore depois
-const USER_ROLE: 'user' | 'avaliador' = 'avaliador'
+import { useAuthStore } from '../store/authStore'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -31,11 +29,11 @@ const cardsAvaliador = [
     rota: '/avaliar',
   },
   {
-    titulo: 'Pontuação',
-    subtitulo: 'RANKING DOS GRUPOS',
-    descricao: 'Acompanhe o desempenho e a classificação de cada grupo na operação.',
-    icon: Trophy,
-    rota: '/pontuacao',
+    titulo: 'Grupos',
+    subtitulo: 'GERENCIE OS GRUPOS',
+    descricao: 'Crie e edite os grupos que participarão dessa operação.',
+    icon: Users,
+    rota: '/grupos',
   },
 ]
 
@@ -193,5 +191,8 @@ function HomeUsuario() {
 
 // ── Export principal ────────────────────────────────────────────
 export default function Home() {
+  const usuario = useAuthStore(state => state.usuario)
+  const USER_ROLE = usuario?.is_avaliador ? 'avaliador' : 'user'
+  
   return USER_ROLE === 'avaliador' ? <HomeAvaliador /> : <HomeUsuario />
 }

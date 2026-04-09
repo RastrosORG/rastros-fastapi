@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
+import { loginApi } from '../api/authApi'
 
 type Modo = 'login' | 'cadastro'
 type Role = 'avaliador' | 'aluno' | null
@@ -12,6 +15,34 @@ export default function Login() {
   const [mostrarChave, setMostrarChave] = useState(false)
   const [mostrarTermos, setMostrarTermos] = useState(false)
   const [concordou, setConcordou] = useState(false)
+  const navigate = useNavigate()
+const setAuth = useAuthStore(state => state.setAuth)
+const [erro, setErro] = useState('')
+const [carregando, setCarregando] = useState(false)
+const [loginInput, setLoginInput] = useState('')
+const [senhaInput, setSenhaInput] = useState('')
+
+async function handleLogin() {
+  if (!loginInput.trim() || !senhaInput.trim()) {
+    setErro('Preencha todos os campos.')
+    return
+  }
+  setCarregando(true)
+  setErro('')
+  try {
+    const dados = await loginApi(loginInput, senhaInput)
+    setAuth(dados.access_token, {
+      id: dados.usuario_id,
+      login: dados.login,
+      is_avaliador: dados.is_avaliador,
+    })
+    navigate('/home')
+  } catch {
+    setErro('Login ou senha incorretos.')
+  } finally {
+    setCarregando(false)
+  }
+}
 
   return (
     <div className="relative min-h-screen bg-[#0d0d0f] flex items-center justify-center overflow-hidden">
@@ -90,18 +121,24 @@ export default function Login() {
                 <input
                   type="text"
                   placeholder="Usuário"
+                  value={loginInput}
+                  onChange={e => setLoginInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
                   className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
-                             placeholder:text-muted-foreground font-mono focus:outline-none 
-                             focus:border-primary/60 transition-colors"
+                            placeholder:text-muted-foreground font-mono focus:outline-none 
+                            focus:border-primary/60 transition-colors"
                 />
 
                 <div className="relative">
                   <input
                     type={mostrarSenha ? 'text' : 'password'}
                     placeholder="Senha"
+                    value={senhaInput}
+                    onChange={e => setSenhaInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleLogin()}
                     className="w-full bg-input border border-border rounded-lg px-4 py-3 text-sm 
-                               text-foreground placeholder:text-muted-foreground font-mono 
-                               focus:outline-none focus:border-primary/60 transition-colors pr-10"
+                              text-foreground placeholder:text-muted-foreground font-mono 
+                              focus:outline-none focus:border-primary/60 transition-colors pr-10"
                   />
                   <button type="button" onClick={() => setMostrarSenha(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
@@ -109,10 +146,18 @@ export default function Login() {
                   </button>
                 </div>
 
-                <button className="w-full py-3 bg-primary/10 hover:bg-primary/20 border border-primary/40 
-                                   hover:border-primary text-primary font-mono text-sm tracking-widest 
-                                   rounded-lg transition-all duration-200 uppercase">
-                  Entrar
+                {erro && (
+                  <p className="text-destructive text-xs font-mono text-center">{erro}</p>
+                )}
+
+                <button
+                  onClick={handleLogin}
+                  disabled={carregando}
+                  className="w-full py-3 bg-primary/10 hover:bg-primary/20 border border-primary/40 
+                            hover:border-primary text-primary font-mono text-sm tracking-widest 
+                            rounded-lg transition-all duration-200 uppercase
+                            disabled:opacity-50 disabled:cursor-not-allowed">
+                  {carregando ? 'Entrando...' : 'Entrar'}
                 </button>
               </div>
 

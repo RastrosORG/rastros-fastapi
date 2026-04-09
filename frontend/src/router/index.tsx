@@ -1,14 +1,13 @@
 import { createBrowserRouter } from 'react-router-dom'
 import Login from '../pages/Login'
 import Home from '../pages/Home'
-import Dossies from '../pages/Dossies'
 import Layout from '../components/layout/Layout'
-import Respostas from '../pages/Respostas'
+import RotaProtegida from './RotaProtegida'
+import Dossies from '../pages/Dossies'
 import GerenciarGrupos from '../pages/GerenciarGrupos'
 import AvaliarRespostas from '../pages/AvaliarRespostas'
-import Grupo from '../pages/Grupo'
-import Pontuacao from '../pages/Pontuacao'
 import ChatAvaliador from '../pages/ChatAvaliador'
+import Respostas from '../pages/Respostas'
 
 export const router = createBrowserRouter([
   {
@@ -16,39 +15,30 @@ export const router = createBrowserRouter([
     element: <Login />,
   },
   {
-    element: <Layout />,
+    element: <RotaProtegida />,
     children: [
       {
-        path: '/pontuacao',
-        element: <Pontuacao />,
+        element: <Layout />,
+        children: [
+          { path: '/home', element: <Home /> },
+          { path: '/dossies', element: <Dossies /> },
+          { path: '/pontuacao', element: <div className="p-8 text-foreground">Pontuação</div> },
+          { path: '/respostas', element: <Respostas /> },
+          { path: '/grupo', element: <div className="p-8 text-foreground">Grupo</div> },
+        ],
       },
       {
-        path: '/grupo',
-        element: <Grupo />,
-      },
-      {
-        path: '/respostas',
-        element: <Respostas />,
-      },
-      {
-        path: '/home',
-        element: <Home />,
-      },
-      {
-        path: '/dossies',
-        element: <Dossies />,
-      },
-      {
-        path: '/grupos',         
-        element: <GerenciarGrupos />,
-      },
-      {
-        path: '/avaliar',
-        element: <AvaliarRespostas />,
-      },
-      {
-        path: '/chat',
-        element: <ChatAvaliador />,
+        element: <RotaProtegida apenasAvaliador />,
+        children: [
+          {
+            element: <Layout />,
+            children: [
+              { path: '/grupos', element: <GerenciarGrupos /> },
+              { path: '/avaliar', element: <AvaliarRespostas /> },
+              { path: '/chat', element: <ChatAvaliador /> },
+            ],
+          },
+        ],
       },
     ],
   },
