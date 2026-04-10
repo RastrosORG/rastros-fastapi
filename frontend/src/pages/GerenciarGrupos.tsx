@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Plus, Key, Lock, Unlock, CheckCircle,
@@ -9,13 +9,15 @@ import {
 } from '@dnd-kit/core'
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 
-import GrupoCard, { type Grupo } from '../components/grupos/GrupoCard'         // Cards dos grupos + drag
-import MembroCard, { type Usuario } from '../components/grupos/MembroCard'      // Membro arrastável (DragOverlay)
-import ModalGerarUsuarios from '../components/grupos/ModalGerarUsuarios'        // Modal qty de usuários
-import ModalConfirmarGerar from '../components/grupos/ModalConfirmarGerar'      // Modal confirmação geração
-import ModalCredenciais from '../components/grupos/ModalCredenciais'            // Modal lista logins/senhas
-import ModalAdicionarUm from '../components/grupos/ModalAdicionarUm'            // Modal adicionar 1 usuário
-import ModalTransferir, { mockAvaliadores } from '../components/grupos/ModalTransferir' // Modal transferir grupo
+import GrupoCard, { type Grupo } from '../components/grupos/GrupoCard'
+import MembroCard, { type Usuario } from '../components/grupos/MembroCard'
+import ModalGerarUsuarios from '../components/grupos/ModalGerarUsuarios'
+import ModalConfirmarGerar from '../components/grupos/ModalConfirmarGerar'
+import ModalCredenciais from '../components/grupos/ModalCredenciais'
+import ModalAdicionarUm from '../components/grupos/ModalAdicionarUm'
+import ModalTransferir, { mockAvaliadores } from '../components/grupos/ModalTransferir'
+import { listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi, moverMembro } from '../api/gruposApi'
+import type { GrupoAPI, CredencialAPI } from '../api/gruposApi'
 
 // ── Mocks — substituídos pelo authStore/backend depois ──────────
 const AVALIADOR_ATUAL = { id: 'av1', nome: 'Avaliador 1' }
@@ -26,42 +28,17 @@ function gerarSenha(): string {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
-function distribuirEmGrupos(usuarios: Usuario[], avaliadores: typeof mockAvaliadores): Grupo[] {
-  const total = usuarios.length
-  let qtd4 = 0, qtd3 = 0
-  if (total % 4 === 0) { qtd4 = total / 4 }
-  else if (total % 4 === 1) { qtd4 = Math.floor(total / 4) - 1; qtd3 = 3 }
-  else if (total % 4 === 2) { qtd4 = Math.floor(total / 4); qtd3 = 2 }
-  else if (total % 4 === 3) { qtd4 = Math.floor(total / 4); qtd3 = 1 }
-
-  const tamanhos = [...Array(qtd4).fill(4), ...Array(qtd3).fill(3)]
-  const grupos: Grupo[] = []
-  let i = 0
-
-  tamanhos.forEach((tam, idx) => {
-    const av = avaliadores[idx % avaliadores.length]
-    const grupoId = `grupo_${idx + 1}`
-    grupos.push({
-      id: grupoId,
-      nome: `Grupo ${String(idx + 1).padStart(2, '0')}`,
-      avaliadorId: av.id,
-      avaliadorNome: av.nome,
-      membros: usuarios.slice(i, i + tam).map(u => ({ ...u, grupoId })),
-    })
-    i += tam
-  })
-  return grupos
-}
-
 type FiltroView = 'todos' | 'meus' | 'outros'
 
 export default function GerenciarGrupos() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>([])
+
   const [ultimaGeracao, setUltimaGeracao] = useState<Date | null>(null)
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [todasCredenciais, setTodasCredenciais] = useState<Usuario[]>([])
   const [qtdUsuarios, setQtdUsuarios] = useState('')
   const [filtro, setFiltro] = useState<FiltroView>('todos')
   const [busca, setBusca] = useState('')
@@ -75,6 +52,33 @@ export default function GerenciarGrupos() {
   const [modalTransferir, setModalTransferir] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  useEffect(() => {
+    carregarGrupos()
+  }, [])
+
+  async function carregarGrupos() {
+    try {
+      setCarregando(true)
+      const dados = await listarTodosGrupos()
+      setGrupos(dados.map(g => ({
+        id: g.id.toString(),
+        nome: g.nome,
+        avaliadorId: g.avaliador_id.toString(),
+        avaliadorNome: g.avaliador_nome,
+        membros: g.membros.map(m => ({
+          id: m.usuario.id.toString(),
+          login: m.usuario.login,
+          senha: '',
+          grupoId: g.id.toString(),
+        }))
+      })))
+    } catch (e) {
+      console.error('Erro ao carregar grupos:', e)
+    } finally {
+      setCarregando(false)
+    }
+  }
 
   function mostrarToast(msg: string, tipo: 'ok' | 'erro') {
     setToast({ msg, tipo })
@@ -101,20 +105,19 @@ export default function GerenciarGrupos() {
     setModalConfirmar(true)
   }
 
-  function confirmarGerar() {
-    // TODO backend: verificar lock de geração simultânea via API antes de prosseguir
-    const qtd = parseInt(qtdUsuarios)
-    const novos: Usuario[] = Array.from({ length: qtd }, (_, i) => {
-      const num = String(todasCredenciais.length + i + 1).padStart(2, '0')
-      return { id: `user_${Date.now()}_${i}`, login: `user${num}`, senha: gerarSenha(), grupoId: '' }
-    })
-    const novosGrupos = distribuirEmGrupos(novos, mockAvaliadores)
-    setGrupos(novosGrupos)
-    setTodasCredenciais(prev => [...prev, ...novos])
-    setUltimaGeracao(new Date())
-    setModalConfirmar(false)
-    setQtdUsuarios('')
-    mostrarToast(`${qtd} usuários gerados em ${novosGrupos.length} grupos!`, 'ok')
+  async function confirmarGerar() {
+    try {
+      const qtd = parseInt(qtdUsuarios)
+      const resultado = await gerarUsuarios(qtd)
+      setTodasCredenciais(resultado.credenciais)
+      await carregarGrupos()
+      setModalConfirmar(false)
+      setQtdUsuarios('')
+      mostrarToast(`${resultado.usuarios_criados} usuários gerados em ${resultado.grupos_criados} grupos!`, 'ok')
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao gerar usuários.', 'erro')
+      setModalConfirmar(false)
+    }
   }
 
   // ── Adicionar um usuário ──────────────────────────────────────
@@ -149,7 +152,6 @@ export default function GerenciarGrupos() {
         membros: [...tirados, { ...novo, grupoId: novoGrupoId }],
       }]
     })
-    setTodasCredenciais(prev => [...prev, novo])
     setModalAdicionarUm(false)
     mostrarToast('Usuário adicionado!', 'ok')
   }
@@ -189,25 +191,61 @@ export default function GerenciarGrupos() {
     })
   }, [])
 
-  function onDragEnd(e: DragEndEvent) {
+  async function onDragEnd(e: DragEndEvent) {
     setActiveId(null)
     if (!e.over) return
+
+    const { active, over } = e
+    const grupoOrigem = grupos.find(g => g.membros.some(m => m.id === active.id))
+    const grupoDestino = grupos.find(g =>
+      g.membros.some(m => m.id === over.id) || g.id === over.id
+    )
+
+    if (!grupoOrigem || !grupoDestino || grupoOrigem.id === grupoDestino.id) return
+
     const invalidos = grupos.filter(g => g.membros.length < 3 || g.membros.length > 4)
-    if (invalidos.length > 0) mostrarToast('Grupos devem ter entre 3 e 4 membros.', 'erro')
+    if (invalidos.length > 0) {
+      mostrarToast('Grupos devem ter entre 3 e 4 membros.', 'erro')
+      await carregarGrupos()
+      return
+    }
+
+    try {
+      await moverMembro(parseInt(active.id as string), parseInt(grupoDestino.id))
+      mostrarToast('Membro movido!', 'ok')
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao mover membro.', 'erro')
+      await carregarGrupos()
+    }
   }
 
   // ── Transferir grupo ──────────────────────────────────────────
-  function transferirGrupo(grupoId: string, avId: string) {
-    const av = mockAvaliadores.find(a => a.id === avId)!
-    setGrupos(prev => prev.map(g => g.id === grupoId
-      ? { ...g, avaliadorId: av.id, avaliadorNome: av.nome } : g
-    ))
-    setModalTransferir(null)
-    mostrarToast('Grupo transferido!', 'ok')
+  async function transferirGrupo(grupoId: string, avId: string) {
+    try {
+      await transferirGrupoApi(parseInt(grupoId), parseInt(avId))
+      await carregarGrupos()
+      setModalTransferir(null)
+      mostrarToast('Grupo transferido!', 'ok')
+    } catch (e) {
+      mostrarToast('Erro ao transferir grupo.', 'erro')
+    }
   }
 
   const usuarioAtivo = grupos.flatMap(g => g.membros).find(m => m.id === activeId)
   const podeGerar = !ultimaGeracao || (Date.now() - ultimaGeracao.getTime()) / 36e5 >= 24
+
+  // ── Tela de carregamento ──────────────────────────────────────
+  if (carregando) {
+    return (
+      <div className="flex items-center justify-center min-h-full" style={{
+        backgroundColor: '#0d0d0f',
+      }}>
+        <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase animate-pulse">
+          Carregando grupos...
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-full" style={{
@@ -267,7 +305,6 @@ export default function GerenciarGrupos() {
             transition={{ duration: 0.4, delay: 0.05 }}
             className="flex items-center gap-3 flex-wrap"
           >
-            {/* Filtro de visibilidade */}
             <div className="flex gap-2">
               {([
                 { key: 'todos', label: 'Todos' },
@@ -286,7 +323,6 @@ export default function GerenciarGrupos() {
               ))}
             </div>
 
-            {/* Busca */}
             <div className="flex items-center gap-2 bg-input border border-border rounded-lg px-3 py-1.5 ml-auto">
               <Search size={14} className="text-muted-foreground" />
               <input

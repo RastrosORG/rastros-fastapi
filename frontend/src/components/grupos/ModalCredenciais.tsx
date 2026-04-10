@@ -1,13 +1,20 @@
 import { motion } from 'framer-motion'
 import { X, Printer, Shield } from 'lucide-react'
-import type { Grupo } from './GrupoCard'
+import type { CredencialAPI } from '../../api/gruposApi'
 
 interface Props {
-  grupos: Grupo[]
+  credenciais: CredencialAPI[]
   onFechar: () => void
 }
 
-export default function ModalCredenciais({ grupos, onFechar }: Props) {
+export default function ModalCredenciais({ credenciais, onFechar }: Props) {
+  // Agrupa por grupo
+  const porGrupo = credenciais.reduce<Record<string, { nome: string; lista: CredencialAPI[] }>>((acc, c) => {
+    if (!acc[c.grupo_id]) acc[c.grupo_id] = { nome: c.grupo_nome, lista: [] }
+    acc[c.grupo_id].lista.push(c)
+    return acc
+  }, {})
+
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -42,24 +49,21 @@ export default function ModalCredenciais({ grupos, onFechar }: Props) {
             </div>
           </div>
           <div className="overflow-y-auto flex-1 bg-[#0f0f14]">
-            {grupos.map(grupo => (
-              <div key={grupo.id} className="border-b border-white/5 last:border-0">
-                <div className="px-6 py-3 bg-black/20 flex items-center justify-between">
-                  <span className="text-xs font-mono text-primary/70 tracking-widest uppercase">
-                    {grupo.nome}
-                  </span>
-                  <span className="text-xs font-mono text-muted-foreground">{grupo.avaliadorNome}</span>
+            {Object.entries(porGrupo).map(([grupoId, { nome, lista }]) => (
+              <div key={grupoId} className="border-b border-white/5 last:border-0">
+                <div className="px-6 py-3 bg-black/20">
+                  <span className="text-xs font-mono text-primary/70 tracking-widest uppercase">{nome}</span>
                 </div>
                 <div className="px-6 py-3 grid grid-cols-2 gap-2">
-                  {grupo.membros.map(m => (
-                    <div key={m.id} className="flex items-center justify-between px-3 py-2
+                  {lista.map(c => (
+                    <div key={c.id} className="flex items-center justify-between px-3 py-2
                                                bg-black/20 border border-white/5 rounded-lg">
                       <div className="flex items-center gap-3">
                         <Shield size={13} className="text-primary/60" />
-                        <span className="font-mono text-sm text-foreground">{m.login}</span>
+                        <span className="font-mono text-sm text-foreground">{c.login}</span>
                       </div>
                       <span className="font-mono text-sm text-muted-foreground tracking-widest">
-                        {m.senha}
+                        {c.senha}
                       </span>
                     </div>
                   ))}

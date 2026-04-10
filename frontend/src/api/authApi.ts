@@ -1,8 +1,4 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: 'http://localhost:8000',
-})
+import { api } from '../lib/axios'
 
 export interface LoginResponse {
   access_token: string
