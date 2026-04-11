@@ -2,9 +2,28 @@ from pydantic import BaseModel, model_validator
 from typing import Optional, Any
 from datetime import datetime
 
+
+class ExcluirInput(BaseModel):
+    motivo: str
+
+
+class LogExclusaoUsuarioOutput(BaseModel):
+    id: int
+    tipo: str
+    nome_usuario: str
+    grupo_nome: str
+    excluido_em: datetime
+    avaliador_nome: str
+    motivo: str
+
+    class Config:
+        from_attributes = True
+
 class UsuarioResumo(BaseModel):
     id: int
     login: str
+    nome_custom: Optional[str] = None
+    nome_alterado: bool = False
 
     class Config:
         from_attributes = True
@@ -19,6 +38,8 @@ class MembroOutput(BaseModel):
 class GrupoOutput(BaseModel):
     id: int
     nome: str
+    nome_custom: Optional[str] = None
+    nome_alterado: bool = False
     avaliador_id: int
     avaliador_nome: str = ""
     criado_em: datetime
@@ -33,6 +54,9 @@ class GrupoOutput(BaseModel):
 
     class Config:
         from_attributes = True
+
+class AtualizarNomeGrupoInput(BaseModel):
+    nome_custom: str
 
 class GrupoCreate(BaseModel):
     nome: str
@@ -56,3 +80,6 @@ class GerarUsuariosOutput(BaseModel):
     grupos_criados: int
     usuarios_criados: int
     credenciais: list[UsuarioCredencial]
+
+class AdicionarMembroOutput(BaseModel):
+    credencial: UsuarioCredencial

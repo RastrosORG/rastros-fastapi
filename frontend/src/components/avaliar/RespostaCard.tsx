@@ -2,13 +2,19 @@ import { Star, Clock, CheckCircle, XCircle, CheckCheck, Paperclip, MessageSquare
 
 export type StatusResposta = 'pendente' | 'aprovada' | 'aprovada_parcial' | 'rejeitada'
 
+export interface ArquivoResposta {
+  id: number
+  nome: string
+  url: string
+}
+
 export interface Resposta {
   id: number
   titulo: string
   descricao: string
   categoria: string
   link?: string
-  arquivos: string[]
+  arquivos: ArquivoResposta[]
   dataEnvio: string
   status: StatusResposta
   dossieId: number

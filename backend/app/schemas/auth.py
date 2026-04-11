@@ -12,6 +12,12 @@ class TokenOutput(BaseModel):
     usuario_id: int
     login: str
 
+class CadastroAvaliadorInput(BaseModel):
+    login: str
+    senha: str
+    email: str
+    chave_acesso: str
+
 class UsuarioBase(BaseModel):
     login: str
     is_avaliador: bool = False

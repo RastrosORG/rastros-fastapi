@@ -2,12 +2,6 @@ import { motion } from 'framer-motion'
 import { X, ChevronRight } from 'lucide-react'
 import type { Grupo } from './GrupoCard'
 
-export const mockAvaliadores = [
-  { id: 'av1', nome: 'Avaliador 1' },
-  { id: 'av2', nome: 'Avaliador 2' },
-  { id: 'av3', nome: 'Avaliador 3' },
-]
-
 interface Props {
   grupoId: string
   grupos: Grupo[]
@@ -17,6 +11,15 @@ interface Props {
 
 export default function ModalTransferir({ grupoId, grupos, onTransferir, onFechar }: Props) {
   const avAtual = grupos.find(g => g.id === grupoId)?.avaliadorId
+
+  const avaliadores = grupos
+    .reduce<{ id: string; nome: string }[]>((acc, g) => {
+      if (!acc.some(a => a.id === g.avaliadorId)) {
+        acc.push({ id: g.avaliadorId, nome: g.avaliadorNome })
+      }
+      return acc
+    }, [])
+    .filter(a => a.id !== avAtual)
 
   return (
     <>
@@ -40,9 +43,12 @@ export default function ModalTransferir({ grupoId, grupos, onTransferir, onFecha
             Escolha o avaliador que receberá este grupo:
           </p>
           <div className="flex flex-col gap-2">
-            {mockAvaliadores
-              .filter(av => av.id !== avAtual)
-              .map(av => (
+            {avaliadores.length === 0 ? (
+              <p className="text-muted-foreground/50 text-xs font-mono text-center py-4">
+                Nenhum outro avaliador disponível.
+              </p>
+            ) : (
+              avaliadores.map(av => (
                 <button key={av.id} onClick={() => onTransferir(grupoId, av.id)}
                   className="flex items-center justify-between px-4 py-3 border border-border
                              hover:border-primary/40 hover:bg-primary/5 rounded-lg transition-all group">
@@ -50,7 +56,7 @@ export default function ModalTransferir({ grupoId, grupos, onTransferir, onFecha
                   <ChevronRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
                 </button>
               ))
-            }
+            )}
           </div>
         </div>
       </motion.div>

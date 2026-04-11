@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.base import Base
@@ -8,6 +8,10 @@ class Grupo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(50), nullable=False)
+    nome_custom = Column(String(100), nullable=True)
+    nome_alterado = Column(Boolean, default=False, nullable=False)
+    chamou_avaliador = Column(Boolean, default=False, nullable=False, server_default='false')
+    avaliador_presente = Column(Boolean, default=False, nullable=False, server_default='false')
     avaliador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
 

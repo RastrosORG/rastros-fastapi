@@ -1,14 +1,13 @@
 import { useState, lazy, Suspense, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X } from 'lucide-react'
+import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X, Trash2, ClipboardList } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { listarDossies, criarDossie, atualizarDossie, arquivarDossie } from '../api/dossiesApi'
-import type { DossieAPI } from '../api/dossiesApi'
-
-// ── Mocks — substituídos pelo store depois ──────────────────────
-const CRONOMETRO_ATIVO = true
+import { useTimerStore } from '../store/timerStore'
+import { listarDossies, criarDossie, atualizarDossie, arquivarDossie, excluirDossie, listarLogExclusoes } from '../api/dossiesApi'
+import type { DossieAPI, LogExclusaoAPI } from '../api/dossiesApi'
+import { enviarResposta as enviarRespostaAPI } from '../api/respostasApi'
 
 // ── Lazy loading dos modais exclusivos ─────────────────────────
 const ModalRespostaUsuario = lazy(() => import('../components/dossies/ModalRespostaUsuario'))
@@ -16,6 +15,8 @@ const ModalGerenciarAvaliador = lazy(() => import('../components/dossies/ModalGe
 const ModalFoto = lazy(() => import('../components/dossies/ModalFoto'))
 const ModalMapa = lazy(() => import('../components/dossies/ModalMapa'))
 const ModalDetalhesDossie = lazy(() => import('../components/dossies/ModalDetalhesDossie'))
+const ModalConfirmarExclusao = lazy(() => import('../components/dossies/ModalConfirmarExclusao'))
+const ModalLogExclusoes = lazy(() => import('../components/dossies/ModalLogExclusoes'))
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -104,6 +105,8 @@ function Fundo() {
 export default function Dossies() {
   const usuario = useAuthStore(state => state.usuario)
   const USER_ROLE = usuario?.is_avaliador ? 'avaliador' : 'user'
+  const { ativo: cronometroAtivo, pausado, encerrado, inicializado } = useTimerStore()
+  const operacaoAtiva = inicializado && (cronometroAtivo || pausado) && !encerrado
 
   const [dossies, setDossies] = useState<Dossie[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -147,9 +150,13 @@ export default function Dossies() {
   const [formDossie, setFormDossie] = useState<FormDossie>(formDossieVazio)
   const [confirmandoArquivar, setConfirmandoArquivar] = useState<number | null>(null)
   const [filtro, setFiltro] = useState<'todos' | 'ativo' | 'arquivado'>('todos')
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null)
   const [modalFoto, setModalFoto] = useState<{ nome: string; url: string } | null>(null)
   const [modalMapa, setModalMapa] = useState<{ local: string; coordenadas: string } | null>(null)
   const [modalDetalhes, setModalDetalhes] = useState<Dossie | null>(null)
+  const [dossieParaExcluir, setDossieParaExcluir] = useState<Dossie | null>(null)
+  const [modalLogAberto, setModalLogAberto] = useState(false)
+  const [logs, setLogs] = useState<LogExclusaoAPI[]>([])
 
   const dossieFiltrados = USER_ROLE === 'avaliador'
     ? dossies.filter(d => filtro === 'todos' ? true : d.status === filtro)
@@ -157,7 +164,7 @@ export default function Dossies() {
 
   // ── Handlers usuário ──────────────────────────────────────────
   function abrirModalResposta(d: Dossie) {
-    if (!CRONOMETRO_ATIVO) return
+    if (!operacaoAtiva) return
     setModalDossie(d)
     setFormResposta(formRespostaVazio)
     setErros({})
@@ -170,12 +177,33 @@ export default function Dossies() {
     if (!formResposta.categoria) novosErros.categoria = 'Selecione uma categoria'
     if (formResposta.arquivos.length === 0) novosErros.arquivos = 'Anexe pelo menos um arquivo'
     if (Object.keys(novosErros).length > 0) { setErros(novosErros); return }
+
+    if (!modalDossie) return
     setEnviando(true)
-    await new Promise(r => setTimeout(r, 800))
-    setEnviando(false)
-    setModalDossie(null)
-    setSucesso(true)
-    setTimeout(() => setSucesso(false), 3000)
+    try {
+      await enviarRespostaAPI(modalDossie.id, {
+        titulo: formResposta.titulo,
+        descricao: formResposta.descricao,
+        categoria: formResposta.categoria,
+        link: formResposta.link || undefined,
+        arquivos: formResposta.arquivos,
+      })
+      setModalDossie(null)
+      setSucesso(true)
+      setTimeout(() => setSucesso(false), 3000)
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      if (status === 403) {
+        setModalDossie(null)
+        setErroEnvio(detail ?? 'A operação foi encerrada. Não é possível enviar respostas.')
+        setTimeout(() => setErroEnvio(null), 5000)
+      } else {
+        setErros({ titulo: 'Erro ao enviar. Tente novamente.' })
+      }
+    } finally {
+      setEnviando(false)
+    }
   }
 
   // ── Handlers avaliador ────────────────────────────────────────
@@ -260,7 +288,22 @@ export default function Dossies() {
     setConfirmandoArquivar(null)
   }
 
-  const cronometroAtivo = CRONOMETRO_ATIVO
+  async function confirmarExclusao(motivo: string) {
+    if (!dossieParaExcluir) return
+    await excluirDossie(dossieParaExcluir.id, motivo)
+    setDossies(prev => prev.filter(d => d.id !== dossieParaExcluir.id))
+    setDossieParaExcluir(null)
+  }
+
+  async function abrirLog() {
+    try {
+      const dados = await listarLogExclusoes()
+      setLogs(dados)
+    } catch (e) {
+      console.error('Erro ao carregar log:', e)
+    }
+    setModalLogAberto(true)
+  }
 
   // ── Tela de carregamento ──────────────────────────────────────
   if (carregando) {
@@ -273,14 +316,11 @@ export default function Dossies() {
     )
   }
 
-  // ── Tela de bloqueio (usuário com cronômetro zerado) ──────────
-  if (USER_ROLE === 'user' && !cronometroAtivo) {
+  // ── Tela de bloqueio (usuário com cronômetro zerado ou encerrado) ──
+  if (USER_ROLE === 'user' && !operacaoAtiva) {
     return (
       <div className="relative flex flex-col min-h-full">
         <Fundo />
-        <div className="relative z-10 w-full flex justify-center py-4 border-b border-primary/20 bg-black/30 backdrop-blur-sm">
-          <span className="font-mono text-2xl font-bold text-muted-foreground tracking-[0.3em]">00:00:00</span>
-        </div>
         <div className="relative z-10 flex flex-col items-center justify-center flex-1 gap-6 py-32">
           <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }} className="flex flex-col items-center gap-5">
@@ -313,13 +353,6 @@ export default function Dossies() {
     <div className="relative flex flex-col min-h-full">
       <Fundo />
 
-      {/* Cronômetro */}
-      <div className="relative z-10 w-full flex justify-center py-4 border-b border-primary/20 bg-black/30 backdrop-blur-sm">
-        <span className="font-mono text-2xl font-bold text-foreground tracking-[0.3em]">
-          {cronometroAtivo ? '01:24:38' : '00:00:00'}
-        </span>
-      </div>
-
       <div className="relative z-10 flex flex-col items-center px-8 py-12 gap-10">
 
         {/* Título */}
@@ -334,12 +367,21 @@ export default function Dossies() {
                 style={{ fontFamily: 'Syne, sans-serif' }}>Dossiês</h1>
             </div>
             {USER_ROLE === 'avaliador' && (
-              <button onClick={abrirCriar}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20
-                           border border-primary/40 hover:border-primary text-primary font-mono
-                           text-xs tracking-widest rounded-lg transition-all duration-200 uppercase">
-                <Plus size={16} /> Novo Dossiê
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={abrirLog}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-card hover:bg-secondary
+                             border border-border hover:border-primary/40 text-muted-foreground
+                             hover:text-foreground font-mono text-xs tracking-widest rounded-lg
+                             transition-all duration-200 uppercase">
+                  <ClipboardList size={14} /> Log de Exclusões
+                </button>
+                <button onClick={abrirCriar}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20
+                             border border-primary/40 hover:border-primary text-primary font-mono
+                             text-xs tracking-widest rounded-lg transition-all duration-200 uppercase">
+                  <Plus size={16} /> Novo Dossiê
+                </button>
+              </div>
             )}
           </div>
           <div className="w-full h-px bg-primary/20" />
@@ -537,23 +579,34 @@ export default function Dossies() {
                       <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   ) : (
-                    <div className="flex gap-2">
-                      <button onClick={() => abrirEditar(d)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border
-                                   text-muted-foreground hover:text-foreground hover:border-primary/40
-                                   font-mono text-xs tracking-widest rounded-lg transition-all duration-200 uppercase">
-                        <Pencil size={13} /> Editar
-                      </button>
-                      <button onClick={() => setConfirmandoArquivar(d.id)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 border font-mono
-                                   text-xs tracking-widest rounded-lg transition-all duration-200 uppercase
-                                   ${d.status === 'ativo'
-                                     ? 'border-border text-muted-foreground hover:text-amber-400 hover:border-amber-400/40'
-                                     : 'border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-400/40'
-                                   }`}>
-                        <Archive size={13} />
-                        {d.status === 'ativo' ? 'Arquivar' : 'Reativar'}
-                      </button>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <button onClick={() => abrirEditar(d)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-border
+                                     text-muted-foreground hover:text-foreground hover:border-primary/40
+                                     font-mono text-xs tracking-widest rounded-lg transition-all duration-200 uppercase">
+                          <Pencil size={13} /> Editar
+                        </button>
+                        <button onClick={() => setConfirmandoArquivar(d.id)}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 border font-mono
+                                     text-xs tracking-widest rounded-lg transition-all duration-200 uppercase
+                                     ${d.status === 'ativo'
+                                       ? 'border-border text-muted-foreground hover:text-amber-400 hover:border-amber-400/40'
+                                       : 'border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-400/40'
+                                     }`}>
+                          <Archive size={13} />
+                          {d.status === 'ativo' ? 'Arquivar' : 'Reativar'}
+                        </button>
+                      </div>
+                      {d.status === 'arquivado' && (
+                        <button onClick={() => setDossieParaExcluir(d)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 border
+                                     border-destructive/20 text-destructive/60 hover:text-destructive
+                                     hover:border-destructive/40 hover:bg-destructive/5
+                                     font-mono text-xs tracking-widest rounded-lg transition-all duration-200 uppercase">
+                          <Trash2 size={13} /> Excluir Permanentemente
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -630,6 +683,25 @@ export default function Dossies() {
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {dossieParaExcluir && (
+            <ModalConfirmarExclusao
+              nomeDossie={dossieParaExcluir.nome}
+              onFechar={() => setDossieParaExcluir(null)}
+              onConfirmar={confirmarExclusao}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {modalLogAberto && (
+            <ModalLogExclusoes
+              logs={logs}
+              onFechar={() => setModalLogAberto(false)}
+            />
+          )}
+        </AnimatePresence>
+
       </Suspense>
 
       {/* Modal confirmação arquivar */}
@@ -689,6 +761,23 @@ export default function Dossies() {
           >
             <CheckCircle size={16} />
             Resposta enviada com sucesso!
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast de erro de envio (ex: cronômetro encerrado) */}
+      <AnimatePresence>
+        {erroEnvio && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+                       bg-destructive/20 border border-destructive/50 text-destructive
+                       px-5 py-3 rounded-xl shadow-2xl font-mono text-sm max-w-md text-center"
+          >
+            <X size={16} className="shrink-0" />
+            {erroEnvio}
           </motion.div>
         )}
       </AnimatePresence>

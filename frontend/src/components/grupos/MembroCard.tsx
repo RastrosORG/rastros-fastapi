@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Trash2 } from 'lucide-react'
 
 export interface Usuario {
   id: string
@@ -11,9 +12,10 @@ export interface Usuario {
 interface Props {
   usuario: Usuario
   editando: boolean
+  onExcluir?: (usuario: Usuario) => void
 }
 
-export default function MembroCard({ usuario, editando }: Props) {
+export default function MembroCard({ usuario, editando, onExcluir }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: usuario.id, disabled: !editando })
 
@@ -39,11 +41,25 @@ export default function MembroCard({ usuario, editando }: Props) {
         </div>
         <span className="text-sm font-mono text-foreground">{usuario.login}</span>
       </div>
+
       {editando && (
-        <div className="flex items-center gap-1 text-muted-foreground/40">
-          <div className="w-1 h-1 rounded-full bg-current" />
-          <div className="w-1 h-1 rounded-full bg-current" />
-          <div className="w-1 h-1 rounded-full bg-current" />
+        <div className="flex items-center gap-2">
+          {onExcluir && (
+            <button
+              type="button"
+              title="Excluir usuário"
+              onPointerDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); onExcluir(usuario) }}
+              className="p-1 rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+          <div className="flex items-center gap-1 text-muted-foreground/40">
+            <div className="w-1 h-1 rounded-full bg-current" />
+            <div className="w-1 h-1 rounded-full bg-current" />
+            <div className="w-1 h-1 rounded-full bg-current" />
+          </div>
         </div>
       )}
     </div>

@@ -13,6 +13,8 @@ class Usuario(Base):
     email = Column(String(100), nullable=True)  # só avaliadores têm email
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
     ativo = Column(Boolean, default=True, nullable=False)
+    nome_custom = Column(String(100), nullable=True)
+    nome_alterado = Column(Boolean, default=False, nullable=False)
 
     # Relacionamentos
     grupo = relationship("MembroGrupo", back_populates="usuario", uselist=False)

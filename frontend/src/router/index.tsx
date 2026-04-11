@@ -8,6 +8,7 @@ import GerenciarGrupos from '../pages/GerenciarGrupos'
 import AvaliarRespostas from '../pages/AvaliarRespostas'
 import ChatAvaliador from '../pages/ChatAvaliador'
 import Respostas from '../pages/Respostas'
+import Grupo from '../pages/Grupo'
 
 export const router = createBrowserRouter([
   {
@@ -24,7 +25,7 @@ export const router = createBrowserRouter([
           { path: '/dossies', element: <Dossies /> },
           { path: '/pontuacao', element: <div className="p-8 text-foreground">Pontuação</div> },
           { path: '/respostas', element: <Respostas /> },
-          { path: '/grupo', element: <div className="p-8 text-foreground">Grupo</div> },
+          { path: '/grupo', element: <Grupo /> },
         ],
       },
       {

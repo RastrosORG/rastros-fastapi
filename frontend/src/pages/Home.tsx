@@ -126,18 +126,9 @@ function HomeAvaliador() {
     <div className="relative flex flex-col min-h-full">
       <Fundo alturaImagem="65%" alturaGrade="35%" />
 
-      {/* Cronômetro */}
-      <motion.div variants={fadeUp} custom={0} initial="hidden" animate="show"
-        className="relative z-10 w-full flex justify-center py-4 border-b border-primary/20 bg-black/30 backdrop-blur-sm"
-      >
-        <span className="font-mono text-2xl font-bold text-foreground tracking-[0.3em]">
-          00:00:00
-        </span>
-      </motion.div>
-
       {/* Conteúdo */}
       <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-8 py-16 gap-12">
-        <motion.div variants={fadeUp} custom={1} initial="hidden" animate="show"
+        <motion.div variants={fadeUp} custom={0} initial="hidden" animate="show"
           className="flex flex-col items-center gap-3"
         >
           <h1 className="text-4xl font-bold text-white text-center tracking-widest uppercase"
@@ -147,7 +138,7 @@ function HomeAvaliador() {
           <div className="w-16 h-px bg-primary/60" />
         </motion.div>
 
-        <GridCards cards={cardsAvaliador} custom={2} />
+        <GridCards cards={cardsAvaliador} custom={1} />
       </div>
     </div>
   )
@@ -159,18 +150,9 @@ function HomeUsuario() {
     <div className="relative flex flex-col min-h-full">
       <Fundo alturaImagem="60%" alturaGrade="40%" />
 
-      {/* Cronômetro */}
-      <motion.div variants={fadeUp} custom={0} initial="hidden" animate="show"
-        className="relative z-10 w-full flex justify-center py-4 border-b border-primary/20 bg-black/30 backdrop-blur-sm"
-      >
-        <span className="font-mono text-2xl font-bold text-foreground tracking-[0.3em]">
-          00:00:00
-        </span>
-      </motion.div>
-
       {/* Conteúdo */}
       <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-8 py-16 gap-12">
-        <motion.div variants={fadeUp} custom={1} initial="hidden" animate="show"
+        <motion.div variants={fadeUp} custom={0} initial="hidden" animate="show"
           className="flex flex-col items-center gap-3"
         >
           <h1 className="text-4xl font-bold text-white text-center tracking-widest uppercase"
@@ -183,7 +165,7 @@ function HomeUsuario() {
           </p>
         </motion.div>
 
-        <GridCards cards={cardsUsuario} custom={2} />
+        <GridCards cards={cardsUsuario} custom={1} />
       </div>
     </div>
   )

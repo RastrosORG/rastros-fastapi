@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, LogIn, Shield } from 'lucide-react'
+import { Send, LogIn, LogOut, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export interface Mensagem {
@@ -16,9 +16,10 @@ interface Props {
   avaliadorEntrou: boolean
   onEnviar: (texto: string) => void
   onEntrar: () => void
+  onSair: () => void
 }
 
-export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnviar, onEntrar }: Props) {
+export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnviar, onEntrar, onSair }: Props) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -49,7 +50,14 @@ export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnvi
             )}
           </p>
         </div>
-        {!avaliadorEntrou && (
+        {avaliadorEntrou ? (
+          <button onClick={onSair}
+            className="flex items-center gap-2 px-4 py-2 bg-destructive/10 hover:bg-destructive/20
+                       border border-destructive/40 hover:border-destructive text-destructive font-mono
+                       text-xs tracking-widest rounded-lg transition-all uppercase">
+            <LogOut size={14} /> Sair do Chat
+          </button>
+        ) : (
           <button onClick={onEntrar}
             className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20
                        border border-primary/40 hover:border-primary text-primary font-mono

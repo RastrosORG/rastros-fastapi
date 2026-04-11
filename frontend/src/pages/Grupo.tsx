@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, Pencil, Check, X, Lock, ShieldCheck, Trophy, FileText, Clock } from 'lucide-react'
 import type { Variants } from 'framer-motion'
+import { useAuthStore } from '../store/authStore'
+import { meuGrupo, atualizarNomeGrupo } from '../api/gruposApi'
+import type { GrupoAPI } from '../api/gruposApi'
+import { atualizarNomeUsuario } from '../api/usuariosApi'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -12,42 +17,6 @@ const fadeUp: Variants = {
   }),
 }
 
-const USER_ID = 2
-
-interface Membro {
-  id: number
-  username: string
-  nomeCustom: string | null
-  nomeAlterado: boolean
-}
-
-interface Grupo {
-  nomeOriginal: string
-  nomeCustom: string | null
-  nomeAlterado: boolean
-  posicaoRanking: number
-  totalGrupos: number
-  totalPontos: number
-  totalRespostas: number
-  membros: Membro[]
-}
-
-const mockGrupo: Grupo = {
-  nomeOriginal: 'Grupo 01',
-  nomeCustom: null,
-  nomeAlterado: false,
-  posicaoRanking: 2,
-  totalGrupos: 8,
-  totalPontos: 340,
-  totalRespostas: 14,
-  membros: [
-    { id: 1, username: 'user01', nomeCustom: 'Rafael Lima', nomeAlterado: true  },
-    { id: 2, username: 'user02', nomeCustom: null,          nomeAlterado: false },
-    { id: 3, username: 'user03', nomeCustom: null,          nomeAlterado: false },
-    { id: 4, username: 'user04', nomeCustom: 'Ana Souza',   nomeAlterado: true  },
-  ],
-}
-
 const coresAvatar = [
   { bg: 'from-violet-500/30 to-violet-500/5', border: 'border-violet-500/40', text: 'text-violet-300' },
   { bg: 'from-primary/30 to-primary/5',       border: 'border-primary/40',    text: 'text-primary'   },
@@ -56,47 +25,128 @@ const coresAvatar = [
 ]
 
 export default function Grupo() {
-  const [grupo, setGrupo]               = useState<Grupo>(mockGrupo)
+  const navigate = useNavigate()
+  const usuario = useAuthStore(s => s.usuario)
+
+  const [grupo, setGrupo] = useState<GrupoAPI | null>(null)
+  const [carregando, setCarregando] = useState(true)
+
   const [editandoGrupo, setEditandoGrupo] = useState(false)
-  const [inputGrupo, setInputGrupo]     = useState('')
-  const [erroGrupo, setErroGrupo]       = useState('')
+  const [inputGrupo, setInputGrupo] = useState('')
+  const [erroGrupo, setErroGrupo] = useState('')
+  const [salvandoGrupo, setSalvandoGrupo] = useState(false)
+
   const [editandoNome, setEditandoNome] = useState(false)
-  const [inputNome, setInputNome]       = useState('')
-  const [erroNome, setErroNome]         = useState('')
-  const [toast, setToast]               = useState<string | null>(null)
+  const [inputNome, setInputNome] = useState('')
+  const [erroNome, setErroNome] = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+
+  const [toast, setToast] = useState<string | null>(null)
+
+  // Redireciona avaliadores para a página deles
+  useEffect(() => {
+    if (usuario?.is_avaliador) {
+      navigate('/grupos', { replace: true })
+    }
+  }, [usuario, navigate])
+
+  useEffect(() => {
+    if (usuario?.is_avaliador) return
+    carregarGrupo()
+  }, [usuario])
+
+  async function carregarGrupo() {
+    try {
+      setCarregando(true)
+      const dados = await meuGrupo()
+      setGrupo(dados)
+    } catch {
+      setGrupo(null)
+    } finally {
+      setCarregando(false)
+    }
+  }
 
   function mostrarToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }
 
-  const nomeGrupo   = grupo.nomeCustom ?? grupo.nomeOriginal
-  const membroAtual = grupo.membros.find(m => m.id === USER_ID)!
-  const nomeUsuario = membroAtual.nomeCustom ?? membroAtual.username
-  const iniciais    = nomeUsuario.split(' ').map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)
-
-  function salvarNomeGrupo() {
+  async function salvarNomeGrupo() {
+    if (!grupo) return
     const t = inputGrupo.trim()
     if (!t)           { setErroGrupo('Digite um nome'); return }
     if (t.length < 3) { setErroGrupo('Nome muito curto'); return }
-    setGrupo(g => ({ ...g, nomeCustom: t, nomeAlterado: true }))
-    setEditandoGrupo(false)
-    mostrarToast('Nome do grupo atualizado!')
+    try {
+      setSalvandoGrupo(true)
+      const atualizado = await atualizarNomeGrupo(grupo.id, t)
+      setGrupo(atualizado)
+      setEditandoGrupo(false)
+      mostrarToast('Nome do grupo atualizado!')
+    } catch {
+      setErroGrupo('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSalvandoGrupo(false)
+    }
   }
 
-  function salvarNomeUsuario() {
+  async function salvarNomeUsuario() {
     const t = inputNome.trim()
     if (!t)           { setErroNome('Digite seu nome'); return }
     if (t.length < 2) { setErroNome('Nome muito curto'); return }
-    setGrupo(g => ({
-      ...g,
-      membros: g.membros.map(m =>
-        m.id === USER_ID ? { ...m, nomeCustom: t, nomeAlterado: true } : m
-      ),
-    }))
-    setEditandoNome(false)
-    mostrarToast('Seu nome foi atualizado!')
+    try {
+      setSalvandoNome(true)
+      await atualizarNomeUsuario(t)
+      // Atualiza o membro localmente sem recarregar tudo
+      setGrupo(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          membros: prev.membros.map(m =>
+            m.usuario.id === usuario?.id
+              ? { ...m, usuario: { ...m.usuario, nome_custom: t, nome_alterado: true } }
+              : m
+          ),
+        }
+      })
+      setEditandoNome(false)
+      mostrarToast('Seu nome foi atualizado!')
+    } catch {
+      setErroNome('Erro ao salvar. Tente novamente.')
+    } finally {
+      setSalvandoNome(false)
+    }
   }
+
+  if (usuario?.is_avaliador) return null
+
+  if (carregando) {
+    return (
+      <div className="flex items-center justify-center min-h-full" style={{ backgroundColor: '#0d0d0f' }}>
+        <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase animate-pulse">
+          Carregando grupo...
+        </span>
+      </div>
+    )
+  }
+
+  if (!grupo) {
+    return (
+      <div className="flex items-center justify-center min-h-full" style={{ backgroundColor: '#0d0d0f' }}>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Users size={32} className="text-muted-foreground/30" />
+          <p className="font-mono text-sm text-muted-foreground tracking-widest uppercase">
+            Você não pertence a nenhum grupo ainda.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const nomeGrupo = grupo.nome_custom ?? grupo.nome
+  const membroAtual = grupo.membros.find(m => m.usuario.id === usuario?.id)
+  const nomeUsuario = membroAtual?.usuario.nome_custom ?? membroAtual?.usuario.login ?? usuario?.login ?? ''
+  const iniciais = nomeUsuario.split(' ').map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <div className="relative flex flex-col min-h-full">
@@ -115,11 +165,6 @@ export default function Grupo() {
         }} />
       </div>
 
-      {/* Cronômetro */}
-      <div className="relative z-10 w-full flex justify-center py-4 border-b border-primary/20 bg-black/30 backdrop-blur-sm">
-        <span className="font-mono text-2xl font-bold text-foreground tracking-[0.3em]">00:00:00</span>
-      </div>
-
       <div className="relative z-10 flex flex-col items-center px-8 py-12 gap-8 w-full">
 
         {/* Título */}
@@ -133,13 +178,13 @@ export default function Grupo() {
 
         <div className="w-full max-w-5xl flex flex-col gap-6">
 
-          {/* Stats do grupo */}
+          {/* Stats */}
           <motion.div variants={fadeUp} custom={1} initial="hidden" animate="show"
             className="grid grid-cols-3 gap-4">
             {[
-              { icon: Trophy,   label: 'Posição no Ranking', value: `#${grupo.posicaoRanking}`, sub: `de ${grupo.totalGrupos} grupos`, cor: 'text-primary'     },
-              { icon: FileText, label: 'Respostas Enviadas',  value: String(grupo.totalRespostas), sub: 'pelo grupo',               cor: 'text-sky-400'     },
-              { icon: Clock,    label: 'Pontuação Total',     value: `${grupo.totalPontos} pts`,   sub: 'acumulados',               cor: 'text-emerald-400' },
+              { icon: Trophy,   label: 'Posição no Ranking', value: '—',  sub: 'em breve',    cor: 'text-primary'     },
+              { icon: FileText, label: 'Respostas Enviadas',  value: '0',  sub: 'pelo grupo',  cor: 'text-sky-400'     },
+              { icon: Clock,    label: 'Pontuação Total',     value: '0',  sub: 'acumulados',  cor: 'text-emerald-400' },
             ].map((s, i) => (
               <motion.div key={s.label} variants={fadeUp} custom={i + 2} initial="hidden" animate="show"
                 className="bg-[#13131a] border border-border rounded-xl p-5 flex items-center gap-4">
@@ -162,7 +207,6 @@ export default function Grupo() {
             <motion.div variants={fadeUp} custom={5} initial="hidden" animate="show"
               className="flex-[3] bg-[#13131a] border border-primary/20 rounded-2xl overflow-hidden">
 
-              {/* Header */}
               <div className="px-7 py-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/15 flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1.5">
                   <p className="text-xs font-mono text-primary/60 tracking-widest uppercase">Nome da Equipe</p>
@@ -173,16 +217,16 @@ export default function Grupo() {
                         <input value={inputGrupo}
                           onChange={e => { setInputGrupo(e.target.value); setErroGrupo('') }}
                           onKeyDown={e => { if (e.key === 'Enter') salvarNomeGrupo(); if (e.key === 'Escape') setEditandoGrupo(false) }}
-                          autoFocus maxLength={30}
-                          className="bg-input border border-primary/50 focus:border-primary rounded-lg px-3 py-1.5 text-white font-bold text-2xl focus:outline-none w-52"
+                          autoFocus maxLength={30} disabled={salvandoGrupo}
+                          className="bg-input border border-primary/50 focus:border-primary rounded-lg px-3 py-1.5 text-white font-bold text-2xl focus:outline-none w-52 disabled:opacity-50"
                           style={{ fontFamily: 'Syne, sans-serif' }}
                         />
-                        <button onClick={salvarNomeGrupo}
-                          className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all">
+                        <button onClick={salvarNomeGrupo} disabled={salvandoGrupo}
+                          className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all disabled:opacity-50">
                           <Check size={15} />
                         </button>
-                        <button onClick={() => setEditandoGrupo(false)}
-                          className="p-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 transition-all">
+                        <button onClick={() => setEditandoGrupo(false)} disabled={salvandoGrupo}
+                          className="p-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 transition-all disabled:opacity-50">
                           <X size={15} />
                         </button>
                       </div>
@@ -192,7 +236,7 @@ export default function Grupo() {
                     <div className="flex items-center gap-3">
                       <h2 className="text-3xl font-bold text-white"
                         style={{ fontFamily: 'Syne, sans-serif' }}>{nomeGrupo}</h2>
-                      {grupo.nomeAlterado ? (
+                      {grupo.nome_alterado ? (
                         <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground/40 border border-border rounded-full px-2 py-0.5">
                           <Lock size={10} /><span>fixado</span>
                         </div>
@@ -206,7 +250,7 @@ export default function Grupo() {
                     </div>
                   )}
 
-                  {!grupo.nomeAlterado && !editandoGrupo && (
+                  {!grupo.nome_alterado && !editandoGrupo && (
                     <p className="text-xs font-mono text-muted-foreground/40">
                       ⚠ Pode ser alterado apenas uma vez.
                     </p>
@@ -223,9 +267,9 @@ export default function Grupo() {
               <div className="p-5 flex flex-col gap-3">
                 <p className="text-xs font-mono text-muted-foreground/50 tracking-widest uppercase mb-1">Membros</p>
                 {grupo.membros.map((membro, i) => {
-                  const isAtual = membro.id === USER_ID
-                  const nome    = membro.nomeCustom ?? membro.username
-                  const cor     = coresAvatar[i % coresAvatar.length]
+                  const isAtual = membro.usuario.id === usuario?.id
+                  const nome = membro.usuario.nome_custom ?? membro.usuario.login
+                  const cor = coresAvatar[i % coresAvatar.length]
                   const memInic = nome.split(' ').map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)
 
                   return (
@@ -239,9 +283,9 @@ export default function Grupo() {
                         <span className={`font-semibold text-sm truncate ${isAtual ? 'text-primary' : 'text-white'}`}>
                           {nome}
                         </span>
-                        {membro.nomeCustom && (
+                        {membro.usuario.nome_custom && (
                           <span className="text-xs font-mono text-muted-foreground/40 truncate hidden sm:block">
-                            {membro.username}
+                            {membro.usuario.login}
                           </span>
                         )}
                       </div>
@@ -260,7 +304,6 @@ export default function Grupo() {
             <motion.div variants={fadeUp} custom={6} initial="hidden" animate="show"
               className="flex-1 flex flex-col gap-4">
 
-              {/* Identidade */}
               <div className="bg-[#13131a] border border-border rounded-2xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border/60 bg-black/20 flex items-center gap-2">
                   <ShieldCheck size={14} className="text-primary/60" />
@@ -273,19 +316,18 @@ export default function Grupo() {
                   <div className="flex flex-col gap-0.5">
                     <span className="text-white font-bold text-base"
                       style={{ fontFamily: 'Syne, sans-serif' }}>{nomeUsuario}</span>
-                    <span className="text-xs font-mono text-muted-foreground/50">{membroAtual.username}</span>
+                    <span className="text-xs font-mono text-muted-foreground/50">{membroAtual?.usuario.login}</span>
                     <span className="text-xs font-mono text-primary/50 mt-0.5">{nomeGrupo}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Edição */}
               <div className="bg-[#13131a] border border-border rounded-2xl p-5 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-mono text-foreground/50 tracking-widest uppercase">
                     Nome de exibição
                   </p>
-                  {!membroAtual.nomeAlterado && (
+                  {!membroAtual?.usuario.nome_alterado && (
                     <span className="text-xs font-mono text-primary/40">1 vez</span>
                   )}
                 </div>
@@ -296,15 +338,15 @@ export default function Grupo() {
                       <input value={inputNome}
                         onChange={e => { setInputNome(e.target.value); setErroNome('') }}
                         onKeyDown={e => { if (e.key === 'Enter') salvarNomeUsuario(); if (e.key === 'Escape') setEditandoNome(false) }}
-                        autoFocus maxLength={40} placeholder="Seu nome"
-                        className="flex-1 bg-input border border-primary/40 focus:border-primary rounded-lg px-3 py-2 text-sm text-foreground font-mono focus:outline-none transition-colors"
+                        autoFocus maxLength={40} placeholder="Seu nome" disabled={salvandoNome}
+                        className="flex-1 bg-input border border-primary/40 focus:border-primary rounded-lg px-3 py-2 text-sm text-foreground font-mono focus:outline-none transition-colors disabled:opacity-50"
                       />
-                      <button onClick={salvarNomeUsuario}
-                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all">
+                      <button onClick={salvarNomeUsuario} disabled={salvandoNome}
+                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all disabled:opacity-50">
                         <Check size={14} />
                       </button>
-                      <button onClick={() => setEditandoNome(false)}
-                        className="p-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 transition-all">
+                      <button onClick={() => setEditandoNome(false)} disabled={salvandoNome}
+                        className="p-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 transition-all disabled:opacity-50">
                         <X size={14} />
                       </button>
                     </div>
@@ -315,7 +357,7 @@ export default function Grupo() {
                     <div className="flex-1 px-3 py-2 bg-secondary/40 border border-border rounded-lg text-sm font-mono text-foreground/80 truncate">
                       {nomeUsuario}
                     </div>
-                    {membroAtual.nomeAlterado ? (
+                    {membroAtual?.usuario.nome_alterado ? (
                       <div className="p-2 rounded-lg border border-border text-muted-foreground/30 cursor-not-allowed">
                         <Lock size={14} />
                       </div>
@@ -332,7 +374,7 @@ export default function Grupo() {
                 <div className="flex flex-col gap-1.5">
                   <p className="text-xs font-mono text-foreground/50 tracking-widest uppercase">Usuário</p>
                   <div className="flex items-center gap-2 px-3 py-2 bg-secondary/40 border border-border rounded-lg">
-                    <span className="text-sm font-mono text-muted-foreground/60 flex-1">{membroAtual.username}</span>
+                    <span className="text-sm font-mono text-muted-foreground/60 flex-1">{membroAtual?.usuario.login}</span>
                     <Lock size={12} className="text-muted-foreground/30 shrink-0" />
                   </div>
                 </div>

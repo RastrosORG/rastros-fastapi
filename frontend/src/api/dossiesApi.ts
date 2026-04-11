@@ -42,3 +42,21 @@ export async function arquivarDossie(id: number): Promise<DossieAPI> {
   const res = await api.patch<DossieAPI>(`/dossies/${id}/arquivar`)
   return res.data
 }
+
+export async function excluirDossie(id: number, motivo: string): Promise<void> {
+  await api.delete(`/dossies/${id}`, { data: { motivo } })
+}
+
+export interface LogExclusaoAPI {
+  id: number
+  nome_dossie: string
+  criado_em: string
+  excluido_em: string
+  avaliador_nome: string
+  motivo: string
+}
+
+export async function listarLogExclusoes(): Promise<LogExclusaoAPI[]> {
+  const res = await api.get<LogExclusaoAPI[]>('/dossies/log-exclusoes')
+  return res.data
+}

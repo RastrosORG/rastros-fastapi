@@ -103,10 +103,12 @@ export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props
                   <p className="text-xs font-mono text-foreground/50 tracking-widest uppercase">Arquivos</p>
                   <div className="flex flex-wrap gap-2">
                     {r.arquivos.map(arq => (
-                      <span key={arq} className="flex items-center gap-1.5 px-2.5 py-1 bg-black/30
-                                                  border border-white/10 rounded-lg text-xs font-mono text-muted-foreground">
-                        {arq}
-                      </span>
+                      <a key={arq.id} href={arq.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-black/30
+                                   border border-white/10 hover:border-primary/30 rounded-lg
+                                   text-xs font-mono text-muted-foreground hover:text-primary transition-colors">
+                        {arq.nome}
+                      </a>
                     ))}
                   </div>
                 </div>

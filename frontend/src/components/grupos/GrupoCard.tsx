@@ -1,9 +1,10 @@
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ArrowRightLeft } from 'lucide-react'
+import { ArrowRightLeft, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import MembroCard from './MembroCard'
 import type { Usuario } from './MembroCard'
 import type { Variants } from 'framer-motion'
+import { useAuthStore } from '../../store/authStore'
 
 export interface Grupo {
   id: string
@@ -21,17 +22,20 @@ const fadeUp: Variants = {
   }),
 }
 
-const AVALIADOR_ATUAL_ID = 'av1' // TODO: substituir pelo authStore
-
 interface Props {
   grupo: Grupo
   editando: boolean
   index: number
   onTransferir: (grupoId: string) => void
+  onExcluirGrupo?: (grupo: Grupo) => void
+  onExcluirMembro?: (usuario: Usuario, grupoNome: string) => void
 }
 
-export default function GrupoCard({ grupo, editando, index, onTransferir }: Props) {
-  const meuGrupo = grupo.avaliadorId === AVALIADOR_ATUAL_ID
+export default function GrupoCard({
+  grupo, editando, index, onTransferir, onExcluirGrupo, onExcluirMembro,
+}: Props) {
+  const usuario = useAuthStore(s => s.usuario)
+  const meuGrupo = grupo.avaliadorId === usuario?.id.toString()
   const tamanho = grupo.membros.length
   const tamanhoOk = tamanho === 3 || tamanho === 4
 
@@ -69,6 +73,15 @@ export default function GrupoCard({ grupo, editando, index, onTransferir }: Prop
               <ArrowRightLeft size={13} />
             </button>
           )}
+          {editando && onExcluirGrupo && (
+            <button
+              onClick={() => onExcluirGrupo(grupo)}
+              title="Excluir grupo permanentemente"
+              className="p-1 rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -76,7 +89,14 @@ export default function GrupoCard({ grupo, editando, index, onTransferir }: Prop
       <div className="p-3 flex flex-col gap-1.5">
         <SortableContext items={grupo.membros.map(m => m.id)} strategy={verticalListSortingStrategy}>
           {grupo.membros.map(m => (
-            <MembroCard key={m.id} usuario={m} editando={editando} />
+            <MembroCard
+              key={m.id}
+              usuario={m}
+              editando={editando}
+              onExcluir={onExcluirMembro
+                ? (u) => onExcluirMembro(u, grupo.nome)
+                : undefined}
+            />
           ))}
         </SortableContext>
         {grupo.membros.length === 0 && (

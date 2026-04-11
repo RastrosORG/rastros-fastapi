@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
@@ -7,6 +8,13 @@ import app.db.todos_modelos  # garante que os modelos são registrados
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Em produção (Render), DATABASE_URL vem da variável de ambiente
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # Render fornece URLs com prefixo "postgres://" — SQLAlchemy exige "postgresql://"
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+    config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata
 

@@ -3,46 +3,88 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { loginApi } from '../api/authApi'
+import { loginApi, cadastrarAvaliador } from '../api/authApi'
 
 type Modo = 'login' | 'cadastro'
-type Role = 'avaliador' | 'aluno' | null
 
 export default function Login() {
   const [modo, setModo] = useState<Modo>('login')
-  const [role, setRole] = useState<Role>(null)
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [mostrarChave, setMostrarChave] = useState(false)
   const [mostrarTermos, setMostrarTermos] = useState(false)
   const [concordou, setConcordou] = useState(false)
   const navigate = useNavigate()
-const setAuth = useAuthStore(state => state.setAuth)
-const [erro, setErro] = useState('')
-const [carregando, setCarregando] = useState(false)
-const [loginInput, setLoginInput] = useState('')
-const [senhaInput, setSenhaInput] = useState('')
+  const setAuth = useAuthStore(state => state.setAuth)
 
-async function handleLogin() {
-  if (!loginInput.trim() || !senhaInput.trim()) {
-    setErro('Preencha todos os campos.')
-    return
+  // Login
+  const [erro, setErro] = useState('')
+  const [carregando, setCarregando] = useState(false)
+  const [loginInput, setLoginInput] = useState('')
+  const [senhaInput, setSenhaInput] = useState('')
+
+  // Cadastro
+  const [cadLogin, setCadLogin] = useState('')
+  const [cadSenha, setCadSenha] = useState('')
+  const [cadConfirmar, setCadConfirmar] = useState('')
+  const [cadEmail, setCadEmail] = useState('')
+  const [cadChave, setCadChave] = useState('')
+  const [cadErro, setCadErro] = useState('')
+  const [cadSucesso, setCadSucesso] = useState(false)
+  const [cadCarregando, setCadCarregando] = useState(false)
+
+  async function handleLogin() {
+    if (!loginInput.trim() || !senhaInput.trim()) {
+      setErro('Preencha todos os campos.')
+      return
+    }
+    setCarregando(true)
+    setErro('')
+    try {
+      const dados = await loginApi(loginInput, senhaInput)
+      setAuth(dados.access_token, {
+        id: dados.usuario_id,
+        login: dados.login,
+        is_avaliador: dados.is_avaliador,
+      })
+      navigate('/home')
+    } catch {
+      setErro('Login ou senha incorretos.')
+    } finally {
+      setCarregando(false)
+    }
   }
-  setCarregando(true)
-  setErro('')
-  try {
-    const dados = await loginApi(loginInput, senhaInput)
-    setAuth(dados.access_token, {
-      id: dados.usuario_id,
-      login: dados.login,
-      is_avaliador: dados.is_avaliador,
-    })
-    navigate('/home')
-  } catch {
-    setErro('Login ou senha incorretos.')
-  } finally {
-    setCarregando(false)
+
+  function validarCadastro(): boolean {
+    if (!cadLogin.trim() || !cadSenha.trim() || !cadEmail.trim() || !cadChave.trim()) {
+      setCadErro('Preencha todos os campos.')
+      return false
+    }
+    if (cadSenha !== cadConfirmar) {
+      setCadErro('As senhas não coincidem.')
+      return false
+    }
+    if (cadSenha.length < 6) {
+      setCadErro('A senha deve ter no mínimo 6 caracteres.')
+      return false
+    }
+    return true
   }
-}
+
+  async function handleCadastro() {
+    if (!validarCadastro()) return
+    setCadCarregando(true)
+    setCadErro('')
+    try {
+      await cadastrarAvaliador(cadLogin.trim(), cadSenha, cadEmail.trim(), cadChave)
+      setCadSucesso(true)
+      setMostrarTermos(false)
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setCadErro(detail ?? 'Erro ao cadastrar. Verifique os dados e a chave de acesso.')
+    } finally {
+      setCadCarregando(false)
+    }
+  }
 
   return (
     <div className="relative min-h-screen bg-[#0d0d0f] flex items-center justify-center overflow-hidden">
@@ -175,92 +217,98 @@ async function handleLogin() {
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}
             >
-              <h2 className="text-xl font-bold text-foreground text-center mb-6 tracking-widest font-mono uppercase">
-                Cadastro
-              </h2>
-
-              <div className="flex flex-col gap-4">
-                <input type="text" placeholder="Usuário"
-                  className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
-                             placeholder:text-muted-foreground font-mono focus:outline-none 
-                             focus:border-primary/60 transition-colors" />
-
-                <input type="password" placeholder="Senha"
-                  className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
-                             placeholder:text-muted-foreground font-mono focus:outline-none 
-                             focus:border-primary/60 transition-colors" />
-
-                <input type="password" placeholder="Confirme a Senha"
-                  className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
-                             placeholder:text-muted-foreground font-mono focus:outline-none 
-                             focus:border-primary/60 transition-colors" />
-
-                {/* Seleção de papel */}
-                <div className="flex gap-3">
-                  {(['avaliador', 'aluno'] as Role[]).map((r) => (
-                    <button key={r} onClick={() => setRole(r)}
-                      className={`flex-1 py-2 border rounded-lg font-mono text-xs tracking-widest uppercase transition-all duration-200
-                        ${role === r
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                        }`}
-                    >
-                      {r === 'avaliador' ? 'Avaliador' : 'Aluno'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Campo chave de autenticação */}
-                <AnimatePresence>
-                  {role && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}
-                      className="flex flex-col gap-3 overflow-hidden"
-                    >
-                      <div className="relative">
-                        <input
-                          type={mostrarChave ? 'text' : 'password'}
-                          placeholder="Chave de Autenticação"
-                          className="w-full bg-input border border-border rounded-lg px-4 py-3 text-sm 
-                                     text-foreground placeholder:text-muted-foreground font-mono 
-                                     focus:outline-none focus:border-primary/60 transition-colors pr-10"
-                        />
-                        <button type="button" onClick={() => setMostrarChave(v => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                          {mostrarChave ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-                      {role === 'avaliador' && (
-                        <input type="email" placeholder="E-mail"
-                          className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
-                                     placeholder:text-muted-foreground font-mono focus:outline-none 
-                                     focus:border-primary/60 transition-colors" />
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <button
-                  onClick={() => role && setMostrarTermos(true)}
-                  className={`w-full py-3 border font-mono text-sm tracking-widest rounded-lg 
-                              transition-all duration-200 uppercase
-                              ${role
-                                ? 'bg-primary/10 hover:bg-primary/20 border-primary/40 hover:border-primary text-primary'
-                                : 'border-border text-muted-foreground cursor-not-allowed opacity-50'
-                              }`}
-                >
-                  Cadastrar
-                </button>
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-foreground tracking-widest font-mono uppercase">
+                  Cadastro
+                </h2>
+                <p className="text-xs font-mono text-muted-foreground mt-1 tracking-widest uppercase">
+                  Exclusivo para avaliadores
+                </p>
               </div>
 
-              <p className="text-center text-xs text-muted-foreground mt-5 font-mono">
-                Já possui login?{' '}
-                <button onClick={() => setModo('login')}
-                  className="text-primary hover:underline transition-all">
-                  Entrar
-                </button>
-              </p>
+              {cadSucesso ? (
+                <div className="flex flex-col items-center gap-4 py-4">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-full">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-emerald-400">
+                      <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm font-mono text-emerald-400 text-center">
+                    Cadastro realizado com sucesso!
+                  </p>
+                  <button onClick={() => { setModo('login'); setCadSucesso(false) }}
+                    className="w-full py-3 bg-primary/10 hover:bg-primary/20 border border-primary/40
+                               hover:border-primary text-primary font-mono text-sm tracking-widest
+                               rounded-lg transition-all uppercase">
+                    Ir para o Login
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <input type="text" placeholder="Usuário"
+                    value={cadLogin} onChange={e => setCadLogin(e.target.value)}
+                    className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
+                               placeholder:text-muted-foreground font-mono focus:outline-none
+                               focus:border-primary/60 transition-colors" />
+
+                  <input type="email" placeholder="E-mail"
+                    value={cadEmail} onChange={e => setCadEmail(e.target.value)}
+                    className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
+                               placeholder:text-muted-foreground font-mono focus:outline-none
+                               focus:border-primary/60 transition-colors" />
+
+                  <div className="relative">
+                    <input type={mostrarSenha ? 'text' : 'password'} placeholder="Senha"
+                      value={cadSenha} onChange={e => setCadSenha(e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-4 py-3 text-sm
+                                 text-foreground placeholder:text-muted-foreground font-mono
+                                 focus:outline-none focus:border-primary/60 transition-colors pr-10" />
+                    <button type="button" onClick={() => setMostrarSenha(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                      {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  <input type="password" placeholder="Confirmar senha"
+                    value={cadConfirmar} onChange={e => setCadConfirmar(e.target.value)}
+                    className="bg-input border border-border rounded-lg px-4 py-3 text-sm text-foreground
+                               placeholder:text-muted-foreground font-mono focus:outline-none
+                               focus:border-primary/60 transition-colors" />
+
+                  <div className="relative">
+                    <input type={mostrarChave ? 'text' : 'password'} placeholder="Chave de acesso"
+                      value={cadChave} onChange={e => setCadChave(e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-4 py-3 text-sm
+                                 text-foreground placeholder:text-muted-foreground font-mono
+                                 focus:outline-none focus:border-primary/60 transition-colors pr-10" />
+                    <button type="button" onClick={() => setMostrarChave(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                      {mostrarChave ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {cadErro && (
+                    <p className="text-destructive text-xs font-mono text-center">{cadErro}</p>
+                  )}
+
+                  <button onClick={() => { if (validarCadastro()) setMostrarTermos(true) }}
+                    className="w-full py-3 bg-primary/10 hover:bg-primary/20 border border-primary/40
+                               hover:border-primary text-primary font-mono text-sm tracking-widest
+                               rounded-lg transition-all duration-200 uppercase">
+                    Cadastrar
+                  </button>
+                </div>
+              )}
+
+              {!cadSucesso && (
+                <p className="text-center text-xs text-muted-foreground mt-5 font-mono">
+                  Já possui login?{' '}
+                  <button onClick={() => setModo('login')}
+                    className="text-primary hover:underline transition-all">
+                    Entrar
+                  </button>
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -342,15 +390,17 @@ async function handleLogin() {
                                tracking-widest rounded-lg hover:bg-secondary transition-all uppercase">
                     Cancelar
                   </button>
-                  <button disabled={!concordou}
-                    className={`px-4 py-2 border font-mono text-xs tracking-widest rounded-lg 
+                  <button
+                    onClick={handleCadastro}
+                    disabled={!concordou || cadCarregando}
+                    className={`px-4 py-2 border font-mono text-xs tracking-widest rounded-lg
                                 transition-all uppercase
-                                ${concordou
+                                ${concordou && !cadCarregando
                                   ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
                                   : 'border-border text-muted-foreground opacity-40 cursor-not-allowed'
                                 }`}
                   >
-                    Concordar e Cadastrar
+                    {cadCarregando ? 'Cadastrando...' : 'Concordar e Cadastrar'}
                   </button>
                 </div>
               </div>

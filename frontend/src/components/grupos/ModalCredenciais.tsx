@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { X, Printer, Shield } from 'lucide-react'
 import type { CredencialAPI } from '../../api/gruposApi'
@@ -8,12 +9,63 @@ interface Props {
 }
 
 export default function ModalCredenciais({ credenciais, onFechar }: Props) {
-  // Agrupa por grupo
   const porGrupo = credenciais.reduce<Record<string, { nome: string; lista: CredencialAPI[] }>>((acc, c) => {
     if (!acc[c.grupo_id]) acc[c.grupo_id] = { nome: c.grupo_nome, lista: [] }
     acc[c.grupo_id].lista.push(c)
     return acc
   }, {})
+
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.id = 'print-credenciais'
+    style.textContent = `
+      @media print {
+        body * { visibility: hidden; }
+        #credenciais-print, #credenciais-print * { visibility: visible; }
+        #credenciais-print {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          max-height: none !important;
+          overflow: visible !important;
+          background: white;
+          color: black;
+          padding: 32px;
+          font-family: monospace;
+        }
+        #credenciais-print .print-titulo {
+          font-size: 18px;
+          font-weight: bold;
+          margin-bottom: 24px;
+          border-bottom: 2px solid black;
+          padding-bottom: 8px;
+        }
+        #credenciais-print .print-grupo {
+          margin-bottom: 20px;
+          page-break-inside: avoid;
+        }
+        #credenciais-print .print-grupo-nome {
+          font-size: 13px;
+          font-weight: bold;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          border-bottom: 1px solid #ccc;
+          padding-bottom: 4px;
+          margin-bottom: 8px;
+        }
+        #credenciais-print .print-linha {
+          display: flex;
+          justify-content: space-between;
+          padding: 4px 0;
+          font-size: 13px;
+          border-bottom: 1px dotted #ddd;
+        }
+      }
+    `
+    document.head.appendChild(style)
+    return () => { document.head.removeChild(style) }
+  }, [])
 
   return (
     <>
@@ -48,6 +100,8 @@ export default function ModalCredenciais({ credenciais, onFechar }: Props) {
               </button>
             </div>
           </div>
+
+          {/* Área visível na tela */}
           <div className="overflow-y-auto flex-1 bg-[#0f0f14]">
             {Object.entries(porGrupo).map(([grupoId, { nome, lista }]) => (
               <div key={grupoId} className="border-b border-white/5 last:border-0">
@@ -73,6 +127,22 @@ export default function ModalCredenciais({ credenciais, onFechar }: Props) {
           </div>
         </div>
       </motion.div>
+
+      {/* Área exclusiva para impressão */}
+      <div id="credenciais-print" style={{ display: 'none' }}>
+        <div className="print-titulo">Credenciais Geradas — Rastros</div>
+        {Object.entries(porGrupo).map(([grupoId, { nome, lista }]) => (
+          <div key={grupoId} className="print-grupo">
+            <div className="print-grupo-nome">{nome}</div>
+            {lista.map(c => (
+              <div key={c.id} className="print-linha">
+                <span>{c.login}</span>
+                <span>{c.senha}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </>
   )
 }

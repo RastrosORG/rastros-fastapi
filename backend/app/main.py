@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import configuracoes
 
 # Importa todos os modelos para o SQLAlchemy registrar os relacionamentos
 import app.db.todos_modelos  # noqa: F401
@@ -8,9 +9,11 @@ from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuac
 
 app = FastAPI(title="Rastros API", version="1.0.0")
 
+origins = [o.strip() for o in configuracoes.ALLOWED_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Plus, Key, Lock, Unlock, CheckCircle,
-  AlertTriangle, RefreshCw, UserPlus, Search
+  AlertTriangle, RefreshCw, UserPlus, Search, ClipboardList
 } from 'lucide-react'
 import {
   DndContext, PointerSensor, useSensor, useSensors, DragOverlay, closestCenter
@@ -10,27 +10,29 @@ import {
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 
 import GrupoCard, { type Grupo } from '../components/grupos/GrupoCard'
-import MembroCard, { type Usuario } from '../components/grupos/MembroCard'
+import type { Usuario } from '../components/grupos/MembroCard'
 import ModalGerarUsuarios from '../components/grupos/ModalGerarUsuarios'
 import ModalConfirmarGerar from '../components/grupos/ModalConfirmarGerar'
 import ModalCredenciais from '../components/grupos/ModalCredenciais'
 import ModalAdicionarUm from '../components/grupos/ModalAdicionarUm'
-import ModalTransferir, { mockAvaliadores } from '../components/grupos/ModalTransferir'
-import { listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi, moverMembro } from '../api/gruposApi'
-import type { GrupoAPI, CredencialAPI } from '../api/gruposApi'
-
-// ── Mocks — substituídos pelo authStore/backend depois ──────────
-const AVALIADOR_ATUAL = { id: 'av1', nome: 'Avaliador 1' }
-
-// ── Helpers ─────────────────────────────────────────────────────
-function gerarSenha(): string {
-  const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
+import ModalTransferir from '../components/grupos/ModalTransferir'
+import ModalConfirmarExclusaoUsuario from '../components/grupos/ModalConfirmarExclusaoUsuario'
+import ModalConfirmarExclusaoGrupo from '../components/grupos/ModalConfirmarExclusaoGrupo'
+import ModalLogExclusoesGrupos from '../components/grupos/ModalLogExclusoesGrupos'
+import {
+  listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
+  moverMembro, adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
+} from '../api/gruposApi'
+import type { GrupoAPI, CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
+import { useAuthStore } from '../store/authStore'
 
 type FiltroView = 'todos' | 'meus' | 'outros'
 
 export default function GerenciarGrupos() {
+  const usuario = useAuthStore(s => s.usuario)
+  const avaliadorId = usuario?.id.toString() ?? ''
+  const avaliadorNome = usuario?.login ?? ''
+
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [carregando, setCarregando] = useState(true)
   const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>([])
@@ -50,6 +52,16 @@ export default function GerenciarGrupos() {
   const [modalCredenciais, setModalCredenciais] = useState(false)
   const [modalAdicionarUm, setModalAdicionarUm] = useState(false)
   const [modalTransferir, setModalTransferir] = useState<string | null>(null)
+
+  // Exclusão de usuário
+  const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<{ usuario: Usuario; grupoNome: string } | null>(null)
+  const [excluindoUsuario, setExcluindoUsuario] = useState(false)
+  // Exclusão de grupo
+  const [grupoParaExcluir, setGrupoParaExcluir] = useState<Grupo | null>(null)
+  const [excluindoGrupo, setExcluindoGrupo] = useState(false)
+  // Log de exclusões
+  const [modalLog, setModalLog] = useState(false)
+  const [logs, setLogs] = useState<LogExclusaoUsuarioAPI[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -88,8 +100,8 @@ export default function GerenciarGrupos() {
   // ── Filtro + busca ────────────────────────────────────────────
   const gruposFiltrados = grupos
     .filter(g => {
-      if (filtro === 'meus') return g.avaliadorId === AVALIADOR_ATUAL.id
-      if (filtro === 'outros') return g.avaliadorId !== AVALIADOR_ATUAL.id
+      if (filtro === 'meus') return g.avaliadorId === avaliadorId
+      if (filtro === 'outros') return g.avaliadorId !== avaliadorId
       return true
     })
     .filter(g => busca.trim() === '' || g.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -114,6 +126,7 @@ export default function GerenciarGrupos() {
       setModalConfirmar(false)
       setQtdUsuarios('')
       mostrarToast(`${resultado.usuarios_criados} usuários gerados em ${resultado.grupos_criados} grupos!`, 'ok')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       mostrarToast(e?.response?.data?.detail ?? 'Erro ao gerar usuários.', 'erro')
       setModalConfirmar(false)
@@ -121,48 +134,27 @@ export default function GerenciarGrupos() {
   }
 
   // ── Adicionar um usuário ──────────────────────────────────────
-  function adicionarUmUsuario() {
-    const num = String(todasCredenciais.length + 1).padStart(2, '0')
-    const novo: Usuario = { id: `user_${Date.now()}`, login: `user${num}`, senha: gerarSenha(), grupoId: '' }
-
-    setGrupos(prev => {
-      const grupoDeTres = prev.find(g => g.membros.length === 3)
-      if (grupoDeTres) {
-        return prev.map(g => g.id === grupoDeTres.id
-          ? { ...g, membros: [...g.membros, { ...novo, grupoId: g.id }] }
-          : g
-        )
-      }
-      const gruposDe4 = prev.filter(g => g.membros.length === 4)
-      if (gruposDe4.length < 2) { mostrarToast('Grupos insuficientes para redistribuir.', 'erro'); return prev }
-      const novoGrupoId = `grupo_${prev.length + 1}`
-      const av = mockAvaliadores[prev.length % mockAvaliadores.length]
-      let tirados: Usuario[] = []
-      const atualizado = prev.map(g => {
-        if (tirados.length < 2 && g.membros.length === 4) {
-          tirados.push({ ...g.membros[g.membros.length - 1], grupoId: novoGrupoId })
-          return { ...g, membros: g.membros.slice(0, -1) }
-        }
-        return g
-      })
-      return [...atualizado, {
-        id: novoGrupoId,
-        nome: `Grupo ${String(prev.length + 1).padStart(2, '0')}`,
-        avaliadorId: av.id, avaliadorNome: av.nome,
-        membros: [...tirados, { ...novo, grupoId: novoGrupoId }],
-      }]
-    })
-    setModalAdicionarUm(false)
-    mostrarToast('Usuário adicionado!', 'ok')
+  async function adicionarUmUsuario() {
+    try {
+      const credencial = await adicionarMembro()
+      setTodasCredenciais(prev => [...prev, credencial])
+      await carregarGrupos()
+      setModalAdicionarUm(false)
+      mostrarToast('Usuário adicionado!', 'ok')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao adicionar usuário.', 'erro')
+      setModalAdicionarUm(false)
+    }
   }
 
   // ── Lock de edição ────────────────────────────────────────────
   function ativarEdicao() {
-    if (lockEdicao && lockEdicao.avaliadorId !== AVALIADOR_ATUAL.id) {
+    if (lockEdicao && lockEdicao.avaliadorId !== avaliadorId) {
       mostrarToast(`${lockEdicao.avaliadorNome} está editando. Aguarde.`, 'erro'); return
     }
     // TODO backend: registrar lock via WebSocket
-    setLockEdicao({ avaliadorId: AVALIADOR_ATUAL.id, avaliadorNome: AVALIADOR_ATUAL.nome })
+    setLockEdicao({ avaliadorId, avaliadorNome })
     setEditando(true)
   }
 
@@ -213,9 +205,55 @@ export default function GerenciarGrupos() {
     try {
       await moverMembro(parseInt(active.id as string), parseInt(grupoDestino.id))
       mostrarToast('Membro movido!', 'ok')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       mostrarToast(e?.response?.data?.detail ?? 'Erro ao mover membro.', 'erro')
       await carregarGrupos()
+    }
+  }
+
+  // ── Exclusão de usuário ───────────────────────────────────────
+  async function confirmarExcluirUsuario(motivo: string) {
+    if (!usuarioParaExcluir) return
+    setExcluindoUsuario(true)
+    try {
+      await excluirUsuario(parseInt(usuarioParaExcluir.usuario.id), motivo)
+      await carregarGrupos()
+      mostrarToast(`Usuário ${usuarioParaExcluir.usuario.login} excluído.`, 'ok')
+      setUsuarioParaExcluir(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao excluir usuário.', 'erro')
+    } finally {
+      setExcluindoUsuario(false)
+    }
+  }
+
+  // ── Exclusão de grupo ─────────────────────────────────────────
+  async function confirmarExcluirGrupo(motivo: string) {
+    if (!grupoParaExcluir) return
+    setExcluindoGrupo(true)
+    try {
+      await excluirGrupo(parseInt(grupoParaExcluir.id), motivo)
+      await carregarGrupos()
+      mostrarToast(`Grupo ${grupoParaExcluir.nome} excluído.`, 'ok')
+      setGrupoParaExcluir(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao excluir grupo.', 'erro')
+    } finally {
+      setExcluindoGrupo(false)
+    }
+  }
+
+  // ── Log de exclusões ──────────────────────────────────────────
+  async function abrirLog() {
+    try {
+      const dados = await listarLogExclusoesGrupos()
+      setLogs(dados)
+      setModalLog(true)
+    } catch {
+      mostrarToast('Erro ao carregar log.', 'erro')
     }
   }
 
@@ -226,7 +264,7 @@ export default function GerenciarGrupos() {
       await carregarGrupos()
       setModalTransferir(null)
       mostrarToast('Grupo transferido!', 'ok')
-    } catch (e) {
+    } catch {
       mostrarToast('Erro ao transferir grupo.', 'erro')
     }
   }
@@ -269,6 +307,14 @@ export default function GerenciarGrupos() {
               style={{ fontFamily: 'Syne, sans-serif' }}>Gerenciar Grupos</h1>
           </div>
           <div className="flex items-center gap-3">
+            {grupos.length > 0 && (
+              <button onClick={abrirLog}
+                className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground
+                           hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
+                           rounded-lg transition-all uppercase">
+                <ClipboardList size={15} /> Log Exclusões
+              </button>
+            )}
             {todasCredenciais.length > 0 && (
               <button onClick={() => setModalCredenciais(true)}
                 className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground
@@ -346,7 +392,7 @@ export default function GerenciarGrupos() {
             className={`flex items-center justify-between px-5 py-3 rounded-xl border transition-all
               ${editando
                 ? 'bg-primary/5 border-primary/30'
-                : lockEdicao && lockEdicao.avaliadorId !== AVALIADOR_ATUAL.id
+                : lockEdicao && lockEdicao.avaliadorId !== avaliadorId
                   ? 'bg-destructive/5 border-destructive/30'
                   : 'bg-card border-border'
               }`}
@@ -355,7 +401,7 @@ export default function GerenciarGrupos() {
               {editando ? (
                 <><Unlock size={16} className="text-primary" />
                   <span className="text-sm font-mono text-primary">Modo de edição ativo — arraste membros entre grupos</span></>
-              ) : lockEdicao && lockEdicao.avaliadorId !== AVALIADOR_ATUAL.id ? (
+              ) : lockEdicao && lockEdicao.avaliadorId !== avaliadorId ? (
                 <><Lock size={16} className="text-destructive" />
                   <span className="text-sm font-mono text-destructive">{lockEdicao.avaliadorNome} está editando agora</span></>
               ) : (
@@ -363,7 +409,7 @@ export default function GerenciarGrupos() {
                   <span className="text-sm font-mono text-muted-foreground">Edição bloqueada — ative para reorganizar</span></>
               )}
             </div>
-            {(!lockEdicao || lockEdicao.avaliadorId === AVALIADOR_ATUAL.id) && (
+            {(!lockEdicao || lockEdicao.avaliadorId === avaliadorId) && (
               <button onClick={editando ? desativarEdicao : ativarEdicao}
                 className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
                            tracking-widest rounded-lg transition-all uppercase
@@ -408,8 +454,15 @@ export default function GerenciarGrupos() {
             onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
               {gruposFiltrados.map((grupo, i) => (
-                <GrupoCard key={grupo.id} grupo={grupo} editando={editando}
-                  index={i} onTransferir={id => setModalTransferir(id)} />
+                <GrupoCard
+                  key={grupo.id}
+                  grupo={grupo}
+                  editando={editando}
+                  index={i}
+                  onTransferir={id => setModalTransferir(id)}
+                  onExcluirGrupo={g => setGrupoParaExcluir(g)}
+                  onExcluirMembro={(u, grupoNome) => setUsuarioParaExcluir({ usuario: u, grupoNome })}
+                />
               ))}
             </div>
             <DragOverlay>
@@ -457,7 +510,7 @@ export default function GerenciarGrupos() {
 
       <AnimatePresence>
         {modalCredenciais && (
-          <ModalCredenciais grupos={grupos} onFechar={() => setModalCredenciais(false)} />
+          <ModalCredenciais credenciais={todasCredenciais} onFechar={() => setModalCredenciais(false)} />
         )}
       </AnimatePresence>
 
@@ -472,6 +525,39 @@ export default function GerenciarGrupos() {
         {modalTransferir && (
           <ModalTransferir grupoId={modalTransferir} grupos={grupos}
             onTransferir={transferirGrupo} onFechar={() => setModalTransferir(null)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {usuarioParaExcluir && (
+          <ModalConfirmarExclusaoUsuario
+            login={usuarioParaExcluir.usuario.login}
+            grupoNome={usuarioParaExcluir.grupoNome}
+            carregando={excluindoUsuario}
+            onConfirmar={confirmarExcluirUsuario}
+            onCancelar={() => setUsuarioParaExcluir(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {grupoParaExcluir && (
+          <ModalConfirmarExclusaoGrupo
+            grupoNome={grupoParaExcluir.nome}
+            membros={grupoParaExcluir.membros}
+            carregando={excluindoGrupo}
+            onConfirmar={confirmarExcluirGrupo}
+            onCancelar={() => setGrupoParaExcluir(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {modalLog && (
+          <ModalLogExclusoesGrupos
+            logs={logs}
+            onFechar={() => setModalLog(false)}
+          />
         )}
       </AnimatePresence>
 
