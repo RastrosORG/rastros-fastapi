@@ -22,7 +22,7 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "480"
       - key: ALLOWED_ORIGINS
-        value: https://rastros4-web.onrender.com   # atualizar com a URL real do frontend
+        value: https://rastros4-web.onrender.com,https://rastros.org,https://www.rastros.org
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
@@ -43,7 +43,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://rastros4-api.onrender.com   # atualizar com a URL real do backend
+        value: https://rastros4-api.onrender.com
     routes:
       - type: rewrite
         source: /*
