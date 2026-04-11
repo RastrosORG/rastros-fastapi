@@ -13,7 +13,7 @@ def login(dados: LoginInput, db: Session = Depends(get_db)):
 
 @router.post("/cadastro-avaliador", status_code=201)
 def cadastro_avaliador(dados: CadastroAvaliadorInput, db: Session = Depends(get_db)):
-    if dados.chave_acesso != configuracoes.CHAVE_CADASTRO_AVALIADOR:
+    if dados.chave_acesso.strip() != configuracoes.CHAVE_CADASTRO_AVALIADOR.strip():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Chave de acesso inválida."

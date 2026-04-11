@@ -75,12 +75,13 @@ export default function Login() {
     setCadCarregando(true)
     setCadErro('')
     try {
-      await cadastrarAvaliador(cadLogin.trim(), cadSenha, cadEmail.trim(), cadChave)
+      await cadastrarAvaliador(cadLogin.trim(), cadSenha, cadEmail.trim(), cadChave.trim())
       setCadSucesso(true)
       setMostrarTermos(false)
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setCadErro(detail ?? 'Erro ao cadastrar. Verifique os dados e a chave de acesso.')
+      setMostrarTermos(false)
     } finally {
       setCadCarregando(false)
     }
