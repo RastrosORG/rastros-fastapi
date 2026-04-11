@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ClipboardList, Activity, Trophy, FileSearch, Users } from 'lucide-react'
+import { ClipboardList, Activity, FileSearch, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Variants } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'

@@ -23,7 +23,7 @@ import {
   listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
   moverMembro, adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
 } from '../api/gruposApi'
-import type { GrupoAPI, CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
+import type { CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
 import { useAuthStore } from '../store/authStore'
 
 type FiltroView = 'todos' | 'meus' | 'outros'
@@ -37,7 +37,7 @@ export default function GerenciarGrupos() {
   const [carregando, setCarregando] = useState(true)
   const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>([])
 
-  const [ultimaGeracao, setUltimaGeracao] = useState<Date | null>(null)
+  const [ultimaGeracao] = useState<Date | null>(null)
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)

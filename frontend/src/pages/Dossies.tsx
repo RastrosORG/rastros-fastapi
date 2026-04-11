@@ -6,7 +6,7 @@ import { User } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useTimerStore } from '../store/timerStore'
 import { listarDossies, criarDossie, atualizarDossie, arquivarDossie, excluirDossie, listarLogExclusoes } from '../api/dossiesApi'
-import type { DossieAPI, LogExclusaoAPI } from '../api/dossiesApi'
+import type { LogExclusaoAPI } from '../api/dossiesApi'
 import { enviarResposta as enviarRespostaAPI } from '../api/respostasApi'
 
 // ── Lazy loading dos modais exclusivos ─────────────────────────

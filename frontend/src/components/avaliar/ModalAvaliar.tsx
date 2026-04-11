@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { X, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
-import { categorias, statusConfig, type Resposta } from './RespostaCard'
+import { categorias, type Resposta } from './RespostaCard'
 
 interface Props {
   resposta: Resposta

@@ -1,4 +1,4 @@
-import api from './authApi'
+import { api } from '../lib/axios'
 
 export interface GrupoChat {
   id: number
