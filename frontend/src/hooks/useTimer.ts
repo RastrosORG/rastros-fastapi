@@ -16,6 +16,10 @@ export function useTimer() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
 
+  // Referência de tempo: timestamp local e segundos do servidor no momento da última sync
+  const refTimestamp = useRef<number>(0)
+  const refSegundos = useRef<number>(0)
+
   function pararContagem() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
@@ -26,22 +30,31 @@ export function useTimer() {
   function iniciarContagem() {
     pararContagem()
     intervalRef.current = setInterval(() => {
+      if (!mountedRef.current) return
       const state = useTimerStore.getState()
       if (!state.ativo) {
         pararContagem()
         return
       }
-      const novo = state.segundosRestantes - 1
+      // Calcula restante a partir do timestamp de referência — sem drift
+      const elapsed = Math.floor((Date.now() - refTimestamp.current) / 1000)
+      const novo = Math.max(0, refSegundos.current - elapsed)
       if (novo <= 0) {
         setEstado({ segundosRestantes: 0, ativo: false, encerrado: true, pausado: false })
         pararContagem()
       } else {
         setEstado({ segundosRestantes: novo })
       }
-    }, 1000)
+    }, 500) // tick a cada 500ms para reagir rápido sem custo extra ao servidor
   }
 
   function sincronizarEstado(data: CronometroEstado) {
+    // Grava referência de tempo antes de atualizar o estado
+    if (data.ativo) {
+      refTimestamp.current = Date.now()
+      refSegundos.current = data.segundos_restantes
+    }
+
     setEstado({
       ativo: data.ativo,
       duracaoSegundos: data.duracao_segundos,
@@ -103,9 +116,30 @@ export function useTimer() {
 
     conectarWS()
 
+    // Quando a aba volta ao foco, recalcula imediatamente a partir do servidor
+    function handleVisibilidade() {
+      if (document.visibilityState === 'visible' && mountedRef.current) {
+        const state = useTimerStore.getState()
+        if (state.ativo) {
+          // Atualiza referência para agora e recalcula sem esperar próximo tick
+          const elapsed = Math.floor((Date.now() - refTimestamp.current) / 1000)
+          const novo = Math.max(0, refSegundos.current - elapsed)
+          if (novo <= 0) {
+            setEstado({ segundosRestantes: 0, ativo: false, encerrado: true, pausado: false })
+            pararContagem()
+          } else {
+            setEstado({ segundosRestantes: novo })
+          }
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilidade)
+
     return () => {
       mountedRef.current = false
       pararContagem()
+      document.removeEventListener('visibilitychange', handleVisibilidade)
       if (wsRef.current) {
         const ws = wsRef.current
         wsRef.current = null
