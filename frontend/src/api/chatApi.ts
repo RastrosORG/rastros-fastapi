@@ -15,6 +15,7 @@ export interface MensagemChat {
   autor: string
   hora: string
   tipo: 'grupo' | 'avaliador' | 'sistema'
+  usuario_id: number | null
 }
 
 export async function listarGruposChat(): Promise<GrupoChat[]> {

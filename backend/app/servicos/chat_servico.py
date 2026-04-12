@@ -8,13 +8,16 @@ from app.modelos.usuario import Usuario
 def _serializar(m: Mensagem, nomes: dict) -> dict:
     if m.is_sistema:
         return {"id": m.id, "texto": m.texto, "autor": "sistema",
-                "hora": m.criado_em.strftime("%H:%M"), "tipo": "sistema"}
+                "hora": m.criado_em.strftime("%H:%M"), "tipo": "sistema",
+                "usuario_id": None}
     if m.is_avaliador:
         return {"id": m.id, "texto": m.texto, "autor": "Avaliador",
-                "hora": m.criado_em.strftime("%H:%M"), "tipo": "avaliador"}
+                "hora": m.criado_em.strftime("%H:%M"), "tipo": "avaliador",
+                "usuario_id": None}
     autor = nomes.get(m.usuario_id, f"user{m.usuario_id}")
     return {"id": m.id, "texto": m.texto, "autor": autor,
-            "hora": m.criado_em.strftime("%H:%M"), "tipo": "grupo"}
+            "hora": m.criado_em.strftime("%H:%M"), "tipo": "grupo",
+            "usuario_id": m.usuario_id}
 
 
 def historico(grupo_id: int, db: Session, limite: int = 50) -> list:

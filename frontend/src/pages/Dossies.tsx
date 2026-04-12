@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FileText, Paperclip, Users, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X, Trash2, ClipboardList } from 'lucide-react'
+import { Paperclip, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X, Trash2, ClipboardList } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
@@ -489,19 +489,69 @@ export default function Dossies() {
                     </button>
                   </div>
 
-                  {/* Arquivos — só usuário vê */}
+                  {/* Metadados — usuário vê (mesma estrutura do avaliador) */}
                   {USER_ROLE === 'user' && (
-                    <div className="flex flex-col gap-2 mt-1">
-                      <div className="flex items-center gap-2 text-primary text-xs font-mono tracking-widest uppercase">
-                        <Paperclip size={13} /><span>Arquivos</span>
+                    <div className="flex gap-3 mt-1">
+
+                      {/* Foto */}
+                      <button
+                        onClick={() => d.foto ? setModalFoto({ nome: d.nome, url: d.foto }) : undefined}
+                        className={`shrink-0 w-16 h-16 rounded-lg border overflow-hidden
+                                    flex items-center justify-center transition-all
+                                    ${d.foto
+                                      ? 'border-primary/30 hover:border-primary cursor-pointer'
+                                      : 'border-border cursor-default bg-input'
+                                    }`}
+                        title={d.foto ? 'Ver foto' : 'Sem foto'}
+                      >
+                        {d.foto
+                          ? <img src={d.foto} alt={d.nome} loading="lazy" className="w-full h-full object-cover" />
+                          : <User size={22} className="text-muted-foreground/30" />
+                        }
+                      </button>
+
+                      {/* Separador vertical */}
+                      <div className="w-px bg-primary/20 self-stretch shrink-0" />
+
+                      {/* Metadados */}
+                      <div className="flex flex-col gap-1.5 text-xs font-mono text-muted-foreground flex-1">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={13} className="text-primary/60 shrink-0" />
+                          <span>Desap.: {new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        {d.data_nascimento && (
+                          <div className="flex items-center gap-2">
+                            <Calendar size={13} className="text-primary/60 shrink-0 opacity-50" />
+                            <span>
+                              Nasc.: {new Date(d.data_nascimento).toLocaleDateString('pt-BR')}
+                              <span className="text-muted-foreground/50 ml-1">
+                                ({calcularIdade(d.data_nascimento)} anos)
+                              </span>
+                            </span>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => d.coordenadas ? setModalMapa({ local: d.local, coordenadas: d.coordenadas }) : undefined}
+                          className={`flex items-center gap-2 text-left transition-colors
+                                      ${d.coordenadas ? 'hover:text-primary cursor-pointer' : 'cursor-default'}`}
+                        >
+                          <MapPin size={13} className="text-primary/60 shrink-0" />
+                          <span className={d.coordenadas ? 'underline underline-offset-2 decoration-primary/40' : ''}>
+                            {d.local}
+                          </span>
+                        </button>
+                        {d.arquivos.length > 0 && (
+                          <button
+                            onClick={() => setModalDetalhes(d)}
+                            className="flex items-center gap-2 text-left hover:text-primary transition-colors"
+                          >
+                            <Paperclip size={13} className="text-primary/60 shrink-0" />
+                            <span className="underline underline-offset-2 decoration-primary/40">
+                              {d.arquivos.length} arquivo{d.arquivos.length !== 1 ? 's' : ''} de apoio
+                            </span>
+                          </button>
+                        )}
                       </div>
-                      {d.arquivos.map(arq => (
-                        <a key={arq.id} href={arq.url_s3} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group">
-                          <FileText size={13} className="text-primary/60 group-hover:text-primary transition-colors" />
-                          <span className="font-mono text-xs">{arq.nome_arquivo}</span>
-                        </a>
-                      ))}
                     </div>
                   )}
 
@@ -582,18 +632,6 @@ export default function Dossies() {
                     </div>
                   )}
 
-                  {/* Equipes — só usuário vê */}
-                  {USER_ROLE === 'user' && (
-                    <div className="flex flex-col gap-2 mt-1">
-                      <div className="flex items-center gap-2 text-primary text-xs font-mono tracking-widest uppercase">
-                        <Users size={13} /><span>Equipes participantes</span>
-                      </div>
-                      {d.equipes.length > 0
-                        ? d.equipes.map(eq => <span key={eq} className="text-sm text-muted-foreground font-mono">{eq}</span>)
-                        : <span className="text-sm text-muted-foreground/50 font-mono italic">Nenhuma equipe participando</span>
-                      }
-                    </div>
-                  )}
                 </div>
 
                 {/* Ações do card */}

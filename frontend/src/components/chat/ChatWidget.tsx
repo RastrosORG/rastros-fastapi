@@ -48,17 +48,10 @@ export default function ChatWidget() {
     el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
   }, [input])
 
-  // Determina o nome de exibição do usuário atual (para detectar mensagens próprias)
-  const meuMembro = grupo?.membros.find(m => m.usuario.id === usuario?.id)
-  const meuDisplayName = meuMembro?.usuario.nome_custom ?? meuMembro?.usuario.login ?? usuario?.login ?? ''
-
-  // Retorna a cor do membro pelo nome de exibição
-  function getCorMembro(autor: string) {
-    if (!grupo) return CORES_CHAT[0]
-    const idx = grupo.membros.findIndex(m => {
-      const nome = m.usuario.nome_custom ?? m.usuario.login
-      return nome === autor
-    })
+  // Retorna a cor do membro pelo ID — imune a mudanças de nome
+  function getCorMembro(usuarioId: number | null) {
+    if (!grupo || !usuarioId) return CORES_CHAT[0]
+    const idx = grupo.membros.findIndex(m => m.usuario.id === usuarioId)
     return CORES_CHAT[idx >= 0 ? idx % CORES_CHAT.length : 0]
   }
 
@@ -178,8 +171,8 @@ export default function ChatWidget() {
               {mensagens.map((m) => {
                 const isAvaliador = m.tipo === 'avaliador'
                 const isSistema = m.tipo === 'sistema'
-                const proprio = m.tipo === 'grupo' && m.autor === meuDisplayName
-                const cor = m.tipo === 'grupo' ? getCorMembro(m.autor) : null
+                const proprio = m.tipo === 'grupo' && m.usuario_id === usuario?.id
+                const cor = m.tipo === 'grupo' ? getCorMembro(m.usuario_id) : null
 
                 if (isSistema) {
                   return (

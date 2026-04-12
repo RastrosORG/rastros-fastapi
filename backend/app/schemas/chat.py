@@ -6,8 +6,9 @@ class MensagemOutput(BaseModel):
     id: int
     texto: str
     autor: str
-    hora: str   # "HH:MM"
-    tipo: str   # "grupo" | "avaliador" | "sistema"
+    hora: str         # "HH:MM"
+    tipo: str         # "grupo" | "avaliador" | "sistema"
+    usuario_id: int | None = None
 
 
 class GrupoChatOutput(BaseModel):
