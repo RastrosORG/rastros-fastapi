@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Send, LogIn, LogOut, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { CORES_CHAT } from '../../lib/coresMembros'
 
 export interface Mensagem {
   id: number
@@ -26,6 +27,22 @@ export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnvi
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens])
+
+  // Mapeia autores de mensagens do grupo → índice de cor, na ordem de aparição
+  const corPorAutor = useMemo(() => {
+    const mapa = new Map<string, number>()
+    for (const m of mensagens) {
+      if (m.tipo === 'grupo' && !mapa.has(m.autor)) {
+        mapa.set(m.autor, mapa.size)
+      }
+    }
+    return mapa
+  }, [mensagens])
+
+  function getCorAutor(autor: string) {
+    const idx = corPorAutor.get(autor) ?? 0
+    return CORES_CHAT[idx % CORES_CHAT.length]
+  }
 
   function enviar() {
     if (!input.trim()) return
@@ -70,49 +87,59 @@ export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnvi
       {/* Mensagens */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
         <AnimatePresence initial={false}>
-          {mensagens.map(m => (
-            <motion.div key={m.id}
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex flex-col ${m.tipo === 'sistema' ? 'items-center' : m.tipo === 'avaliador' ? 'items-end' : 'items-start'}`}
-            >
-              {/* Mensagem do sistema */}
-              {m.tipo === 'sistema' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20
-                                rounded-full text-xs font-mono text-primary/80 my-1">
-                  <Shield size={11} />
-                  {m.texto}
-                </div>
-              )}
+          {mensagens.map(m => {
+            const cor = m.tipo === 'grupo' ? getCorAutor(m.autor) : null
 
-              {/* Mensagem do avaliador */}
-              {m.tipo === 'avaliador' && (
-                <div className="flex flex-col items-end gap-1 max-w-[75%]">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <Shield size={11} className="text-primary" />
-                    <span className="text-xs font-mono text-primary">Avaliador</span>
-                  </div>
-                  <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-primary/15 border border-primary/30
-                                  text-sm text-foreground leading-relaxed">
+            return (
+              <motion.div key={m.id}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`flex flex-col ${
+                  m.tipo === 'sistema'
+                    ? 'items-center'
+                    : m.tipo === 'avaliador'
+                    ? 'items-end'
+                    : 'items-start'
+                }`}
+              >
+                {/* Mensagem do sistema */}
+                {m.tipo === 'sistema' && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20
+                                  rounded-full text-xs font-mono text-primary/80 my-1">
+                    <Shield size={11} />
                     {m.texto}
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{m.hora}</span>
-                </div>
-              )}
+                )}
 
-              {/* Mensagem do grupo */}
-              {m.tipo === 'grupo' && (
-                <div className="flex flex-col items-start gap-1 max-w-[75%]">
-                  <span className="text-xs font-mono text-muted-foreground ml-1">{m.autor}</span>
-                  <div className="px-4 py-2.5 rounded-2xl rounded-tl-sm bg-secondary border border-border
-                                  text-sm text-foreground leading-relaxed">
-                    {m.texto}
+                {/* Mensagem do avaliador (direita) */}
+                {m.tipo === 'avaliador' && (
+                  <div className="flex flex-col items-end gap-1 max-w-[75%]">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Shield size={11} className="text-primary" />
+                      <span className="text-xs font-mono text-primary">Avaliador</span>
+                    </div>
+                    <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-primary/15 border border-primary/30
+                                    text-sm text-foreground leading-relaxed">
+                      {m.texto}
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono">{m.hora}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono ml-1">{m.hora}</span>
-                </div>
-              )}
-            </motion.div>
-          ))}
+                )}
+
+                {/* Mensagem do grupo (esquerda, cor do membro) */}
+                {m.tipo === 'grupo' && cor && (
+                  <div className="flex flex-col items-start gap-1 max-w-[75%]">
+                    <span className={`text-xs font-mono ml-1 ${cor.autorCor}`}>{m.autor}</span>
+                    <div className={`px-4 py-2.5 rounded-2xl rounded-tl-sm border
+                                    text-sm text-foreground leading-relaxed ${cor.bubble}`}>
+                      {m.texto}
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono ml-1">{m.hora}</span>
+                  </div>
+                )}
+              </motion.div>
+            )
+          })}
         </AnimatePresence>
         <div ref={bottomRef} />
       </div>

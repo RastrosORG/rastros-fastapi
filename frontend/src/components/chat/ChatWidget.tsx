@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { MessageSquare, X, Send, Bell } from 'lucide-react'
+import { MessageSquare, X, Send, Bell, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { meuGrupo } from '../../api/gruposApi'
+import type { GrupoAPI } from '../../api/gruposApi'
 import { useChatGrupo } from '../../hooks/useChat'
+import { useAuthStore } from '../../store/authStore'
+import { CORES_CHAT } from '../../lib/coresMembros'
 
 const MIN_W = 280
 const MIN_H = 300
@@ -13,7 +16,7 @@ const DEFAULT_H = 420
 
 export default function ChatWidget() {
   const [aberto, setAberto] = useState(false)
-  const [grupoId, setGrupoId] = useState<number | null>(null)
+  const [grupo, setGrupo] = useState<GrupoAPI | null>(null)
   const [input, setInput] = useState('')
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H })
 
@@ -22,11 +25,14 @@ export default function ChatWidget() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const usuario = useAuthStore(s => s.usuario)
+  const grupoId = grupo?.id ?? null
+
   const { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar } = useChatGrupo(grupoId)
 
   // Busca o grupo do usuário na montagem
   useEffect(() => {
-    meuGrupo().then(g => setGrupoId(g.id)).catch(() => {})
+    meuGrupo().then(g => setGrupo(g)).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -41,6 +47,20 @@ export default function ChatWidget() {
     el.style.height = Math.min(el.scrollHeight, maxH) + 'px'
     el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden'
   }, [input])
+
+  // Determina o nome de exibição do usuário atual (para detectar mensagens próprias)
+  const meuMembro = grupo?.membros.find(m => m.usuario.id === usuario?.id)
+  const meuDisplayName = meuMembro?.usuario.nome_custom ?? meuMembro?.usuario.login ?? usuario?.login ?? ''
+
+  // Retorna a cor do membro pelo nome de exibição
+  function getCorMembro(autor: string) {
+    if (!grupo) return CORES_CHAT[0]
+    const idx = grupo.membros.findIndex(m => {
+      const nome = m.usuario.nome_custom ?? m.usuario.login
+      return nome === autor
+    })
+    return CORES_CHAT[idx >= 0 ? idx % CORES_CHAT.length : 0]
+  }
 
   // ── Resize ────────────────────────────────────────────────────────
   function onResizeMouseDown(e: React.MouseEvent) {
@@ -156,9 +176,10 @@ export default function ChatWidget() {
                 </div>
               )}
               {mensagens.map((m) => {
-                const proprio = m.tipo === 'grupo'  // mensagens do grupo = próprias para o usuário
                 const isAvaliador = m.tipo === 'avaliador'
                 const isSistema = m.tipo === 'sistema'
+                const proprio = m.tipo === 'grupo' && m.autor === meuDisplayName
+                const cor = m.tipo === 'grupo' ? getCorMembro(m.autor) : null
 
                 if (isSistema) {
                   return (
@@ -171,18 +192,24 @@ export default function ChatWidget() {
                 }
 
                 return (
-                  <div key={m.id} className={`flex flex-col gap-1 ${isAvaliador ? 'items-start' : 'items-end'}`}>
+                  <div key={m.id} className={`flex flex-col gap-1 ${proprio ? 'items-end' : 'items-start'}`}>
                     {isAvaliador && (
-                      <span className="text-xs font-mono text-primary ml-1">Avaliador</span>
+                      <span className="text-xs font-mono text-primary ml-1 flex items-center gap-1">
+                        <Shield size={10} /> Avaliador
+                      </span>
                     )}
-                    <div className={`px-3 py-2 rounded-lg text-sm max-w-[85%] break-words ${
+                    {!isAvaliador && !proprio && m.tipo === 'grupo' && (
+                      <span className={`text-xs font-mono ml-1 ${cor?.autorCor ?? 'text-muted-foreground'}`}>
+                        {m.autor}
+                      </span>
+                    )}
+                    <div className={`px-3 py-2 rounded-lg text-sm max-w-[85%] break-words border ${
                       isAvaliador
-                        ? 'bg-primary/15 border border-primary/30 text-foreground'
-                        : 'bg-secondary text-foreground border border-border'
+                        ? 'bg-primary/15 border-primary/30 text-foreground'
+                        : cor
+                        ? `${cor.bubble} text-foreground`
+                        : 'bg-secondary text-foreground border-border'
                     }`}>
-                      {!isAvaliador && !proprio && (
-                        <span className="block text-xs text-muted-foreground font-mono mb-1">{m.autor}</span>
-                      )}
                       {m.texto}
                     </div>
                     <span className="text-xs text-muted-foreground font-mono">{m.hora}</span>

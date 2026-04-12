@@ -104,7 +104,7 @@ function PainelAvaliador() {
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Botão lock */}
         <button
           onClick={handleLock}
@@ -277,9 +277,9 @@ export default function TimerBar() {
     : 'AGUARDANDO'
 
   return (
-    <div className="w-full flex items-center justify-between px-6 py-3 border-b border-primary/20 bg-black/30 backdrop-blur-sm">
+    <div className="w-full flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 border-b border-primary/20 bg-black/30 backdrop-blur-sm">
       {/* Tempo */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <span className={`font-mono text-2xl font-bold tracking-[0.3em] ${corTempo}`}>
           {formatarTempo(segundosRestantes)}
         </span>
