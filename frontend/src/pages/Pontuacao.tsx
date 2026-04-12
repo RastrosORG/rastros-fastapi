@@ -85,6 +85,7 @@ export default function Pontuacao() {
   const [atividadeRaw, setAtividadeRaw] = useState<IntervaloDados[]>([])
   const [evolucaoRaw, setEvolucaoRaw] = useState<IntervaloDados[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState(false)
   const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([])
 
   useEffect(() => {
@@ -96,6 +97,7 @@ export default function Pontuacao() {
         // Pré-seleciona os 3 primeiros no filtro de atividade
         setGruposSelecionados(dados.ranking.slice(0, 3).map(g => g.nome))
       })
+      .catch(() => setErro(true))
       .finally(() => setCarregando(false))
   }, [])
 
@@ -123,6 +125,22 @@ export default function Pontuacao() {
     return (
       <div className="flex items-center justify-center min-h-full">
         <Loader2 size={32} className="animate-spin text-primary/60" />
+      </div>
+    )
+  }
+
+  if (erro) {
+    return (
+      <div className="flex items-center justify-center min-h-full">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Trophy size={32} className="text-muted-foreground/30" />
+          <p className="font-mono text-sm text-muted-foreground tracking-widest uppercase">
+            Erro ao carregar pontuação
+          </p>
+          <p className="font-mono text-xs text-muted-foreground/50">
+            Verifique a conexão com o servidor
+          </p>
+        </div>
       </div>
     )
   }

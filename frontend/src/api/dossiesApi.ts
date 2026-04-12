@@ -60,3 +60,12 @@ export async function listarLogExclusoes(): Promise<LogExclusaoAPI[]> {
   const res = await api.get<LogExclusaoAPI[]>('/dossies/log-exclusoes')
   return res.data
 }
+
+export async function uploadArquivoDossie(dossieId: number, arquivo: File): Promise<DossieAPI> {
+  const formData = new FormData()
+  formData.append('arquivo', arquivo)
+  const res = await api.post<DossieAPI>(`/dossies/${dossieId}/arquivos`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data
+}

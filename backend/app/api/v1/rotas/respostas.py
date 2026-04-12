@@ -23,7 +23,7 @@ def enviar_resposta(
     descricao: str = Form(...),
     categoria: str = Form(...),
     link: Optional[str] = Form(None),
-    arquivos: List[UploadFile] = File(...),
+    arquivos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
     usuario_atual=Depends(get_usuario_atual),
 ):

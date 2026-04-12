@@ -5,7 +5,7 @@ import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useTimerStore } from '../store/timerStore'
-import { listarDossies, criarDossie, atualizarDossie, arquivarDossie, excluirDossie, listarLogExclusoes } from '../api/dossiesApi'
+import { listarDossies, criarDossie, atualizarDossie, arquivarDossie, excluirDossie, listarLogExclusoes, uploadArquivoDossie } from '../api/dossiesApi'
 import type { LogExclusaoAPI } from '../api/dossiesApi'
 import { enviarResposta as enviarRespostaAPI } from '../api/respostasApi'
 
@@ -236,16 +236,31 @@ export default function Dossies() {
           local: formDossie.local,
           coordenadas: formDossie.coordenadas || undefined,
         })
+
+        // Faz upload dos arquivos em paralelo após criar o dossiê
+        const arquivosParaUpload: File[] = [
+          ...(formDossie.foto ? [formDossie.foto] : []),
+          ...formDossie.arquivosAvaliador,
+        ]
+        let dossieAtualizado = novo
+        for (const arquivo of arquivosParaUpload) {
+          try {
+            dossieAtualizado = await uploadArquivoDossie(novo.id, arquivo)
+          } catch {
+            // Upload falhou — dossiê já foi criado, continua
+          }
+        }
+
         setDossies(prev => [...prev, {
-          id: novo.id,
-          nome: novo.nome,
-          descricao: novo.descricao,
-          data_nascimento: novo.data_nascimento,
-          data_desaparecimento: novo.data_desaparecimento,
-          local: novo.local,
-          coordenadas: novo.coordenadas,
-          foto: novo.foto_url,
-          arquivos: [],
+          id: dossieAtualizado.id,
+          nome: dossieAtualizado.nome,
+          descricao: dossieAtualizado.descricao,
+          data_nascimento: dossieAtualizado.data_nascimento,
+          data_desaparecimento: dossieAtualizado.data_desaparecimento,
+          local: dossieAtualizado.local,
+          coordenadas: dossieAtualizado.coordenadas,
+          foto: dossieAtualizado.foto_url,
+          arquivos: dossieAtualizado.arquivos.map(a => a.nome_arquivo),
           arquivosAvaliador: [],
           equipes: [],
           respostas: 0,
@@ -260,14 +275,31 @@ export default function Dossies() {
           local: formDossie.local,
           coordenadas: formDossie.coordenadas || undefined,
         })
+
+        // Upload de novos arquivos ao editar
+        const arquivosParaUpload: File[] = [
+          ...(formDossie.foto ? [formDossie.foto] : []),
+          ...formDossie.arquivosAvaliador,
+        ]
+        let dossieAtualizado = atualizado
+        for (const arquivo of arquivosParaUpload) {
+          try {
+            dossieAtualizado = await uploadArquivoDossie(dossieEditando.id, arquivo)
+          } catch {
+            // Upload falhou silenciosamente — dossiê foi atualizado nos outros campos
+          }
+        }
+
         setDossies(prev => prev.map(d => d.id === dossieEditando.id ? {
           ...d,
-          nome: atualizado.nome,
-          descricao: atualizado.descricao,
-          data_nascimento: atualizado.data_nascimento,
-          data_desaparecimento: atualizado.data_desaparecimento,
-          local: atualizado.local,
-          coordenadas: atualizado.coordenadas,
+          nome: dossieAtualizado.nome,
+          descricao: dossieAtualizado.descricao,
+          data_nascimento: dossieAtualizado.data_nascimento,
+          data_desaparecimento: dossieAtualizado.data_desaparecimento,
+          local: dossieAtualizado.local,
+          coordenadas: dossieAtualizado.coordenadas,
+          foto: dossieAtualizado.foto_url,
+          arquivos: dossieAtualizado.arquivos.map(a => a.nome_arquivo),
         } : d))
       }
       setModalModo(null)

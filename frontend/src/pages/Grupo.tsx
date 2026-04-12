@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore'
 import { meuGrupo, atualizarNomeGrupo } from '../api/gruposApi'
 import type { GrupoAPI } from '../api/gruposApi'
 import { atualizarNomeUsuario } from '../api/usuariosApi'
+import { listarRanking } from '../api/pontuacaoApi'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -43,6 +44,11 @@ export default function Grupo() {
 
   const [toast, setToast] = useState<string | null>(null)
 
+  // Estatísticas do ranking para este grupo
+  const [pontos, setPontos] = useState(0)
+  const [totalRespostas, setTotalRespostas] = useState(0)
+  const [posicao, setPosicao] = useState<number | null>(null)
+
   // Redireciona avaliadores para a página deles
   useEffect(() => {
     if (usuario?.is_avaliador) {
@@ -54,6 +60,21 @@ export default function Grupo() {
     if (usuario?.is_avaliador) return
     carregarGrupo()
   }, [usuario])
+
+  // Busca estatísticas reais do ranking após carregar o grupo
+  useEffect(() => {
+    if (!grupo) return
+    listarRanking()
+      .then(dados => {
+        const idx = dados.ranking.findIndex(g => g.grupo_id === grupo.id)
+        if (idx !== -1) {
+          setPontos(dados.ranking[idx].pontos)
+          setTotalRespostas(dados.ranking[idx].respostas)
+          setPosicao(idx + 1)
+        }
+      })
+      .catch(() => {})
+  }, [grupo?.id])
 
   async function carregarGrupo() {
     try {
@@ -182,9 +203,9 @@ export default function Grupo() {
           <motion.div variants={fadeUp} custom={1} initial="hidden" animate="show"
             className="grid grid-cols-3 gap-4">
             {[
-              { icon: Trophy,   label: 'Posição no Ranking', value: '—',  sub: 'em breve',    cor: 'text-primary'     },
-              { icon: FileText, label: 'Respostas Enviadas',  value: '0',  sub: 'pelo grupo',  cor: 'text-sky-400'     },
-              { icon: Clock,    label: 'Pontuação Total',     value: '0',  sub: 'acumulados',  cor: 'text-emerald-400' },
+              { icon: Trophy,   label: 'Posição no Ranking', value: posicao ? `${posicao}º`        : '—', sub: posicao ? 'no ranking geral' : 'sem dados ainda', cor: 'text-primary'     },
+              { icon: FileText, label: 'Respostas Enviadas',  value: String(totalRespostas),               sub: 'pelo grupo',                                     cor: 'text-sky-400'     },
+              { icon: Clock,    label: 'Pontuação Total',     value: String(pontos),                        sub: 'pontos acumulados',                               cor: 'text-emerald-400' },
             ].map((s, i) => (
               <motion.div key={s.label} variants={fadeUp} custom={i + 2} initial="hidden" animate="show"
                 className="bg-[#13131a] border border-border rounded-xl p-5 flex items-center gap-4">
