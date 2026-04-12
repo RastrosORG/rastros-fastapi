@@ -68,6 +68,17 @@ def arquivar(
 ):
     return dossie_servico.arquivar_dossie(dossie_id, db)
 
+@router.post("/{dossie_id}/foto", response_model=DossieOutput)
+def upload_foto(
+    dossie_id: int,
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _=Depends(get_avaliador)
+):
+    _, url = storage_servico.upload_arquivo(arquivo, f"dossies/{dossie_id}/foto")
+    return dossie_servico.atualizar_foto(dossie_id, url, db)
+
+
 @router.post("/{dossie_id}/arquivos", response_model=DossieOutput)
 def upload_arquivo(
     dossie_id: int,

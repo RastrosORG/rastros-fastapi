@@ -63,6 +63,13 @@ def arquivar_dossie(dossie_id: int, db: Session) -> Dossie:
     db.refresh(dossie)
     return dossie
 
+def atualizar_foto(dossie_id: int, url_s3: str, db: Session) -> Dossie:
+    dossie = buscar_dossie(dossie_id, db)
+    dossie.foto_url = url_s3
+    db.commit()
+    db.refresh(dossie)
+    return dossie
+
 def adicionar_arquivo(
     dossie_id: int,
     nome_arquivo: str,

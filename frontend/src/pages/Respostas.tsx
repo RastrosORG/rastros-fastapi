@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, FileText, CheckCircle, Clock, XCircle, Paperclip, MessageSquare, CheckCheck, ExternalLink, FileSearch } from 'lucide-react'
+import { X, FileText, CheckCircle, Clock, XCircle, Paperclip, MessageSquare, CheckCheck, ExternalLink, FileSearch, Download, Image, FileType } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'
 import { listarMinhasRespostas } from '../api/respostasApi'
@@ -62,12 +62,20 @@ const statusConfig = {
   },
 } as const
 
+function tipoArquivo(url: string): 'imagem' | 'pdf' | 'outro' {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'imagem'
+  if (ext === 'pdf') return 'pdf'
+  return 'outro'
+}
+
 export default function Respostas() {
   const usuario = useAuthStore((s) => s.usuario)
   const [dossies, setDossies] = useState<DossieRespostasAPI[]>([])
   const [carregando, setCarregando] = useState(true)
   const [modalResposta, setModalResposta] = useState<RespostaAPI | null>(null)
   const [dossieModal, setDossieModal] = useState('')
+  const [modalArquivo, setModalArquivo] = useState<{ nome: string; url: string } | null>(null)
 
   useEffect(() => {
     async function carregar() {
@@ -250,6 +258,76 @@ export default function Respostas() {
 
       </div>
 
+      {/* Modal de arquivo */}
+      <AnimatePresence>
+        {modalArquivo && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setModalArquivo(null)}
+              className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="fixed inset-0 z-[70] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#13131a] border border-primary/20 rounded-2xl w-full max-w-3xl
+                              max-h-[90vh] flex flex-col pointer-events-auto shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-primary/20 bg-black/40 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {tipoArquivo(modalArquivo.url) === 'imagem'
+                      ? <Image size={14} className="text-primary/60 shrink-0" />
+                      : tipoArquivo(modalArquivo.url) === 'pdf'
+                      ? <FileType size={14} className="text-primary/60 shrink-0" />
+                      : <FileText size={14} className="text-primary/60 shrink-0" />
+                    }
+                    <span className="text-sm font-mono text-foreground/80 truncate">{modalArquivo.nome}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a href={modalArquivo.url} download={modalArquivo.nome}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-muted-foreground
+                                 hover:text-foreground border border-border hover:border-primary/40
+                                 rounded-lg transition-all">
+                      <Download size={12} /> Baixar
+                    </a>
+                    <button onClick={() => setModalArquivo(null)}
+                      className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all">
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conteúdo */}
+                <div className="flex-1 overflow-auto flex items-center justify-center bg-black/60 min-h-0">
+                  {tipoArquivo(modalArquivo.url) === 'imagem' && (
+                    <img src={modalArquivo.url} alt={modalArquivo.nome}
+                      className="max-w-full max-h-full object-contain p-4" />
+                  )}
+                  {tipoArquivo(modalArquivo.url) === 'pdf' && (
+                    <iframe src={modalArquivo.url} title={modalArquivo.nome}
+                      className="w-full h-full min-h-[60vh] border-0" />
+                  )}
+                  {tipoArquivo(modalArquivo.url) === 'outro' && (
+                    <div className="flex flex-col items-center gap-5 py-16 text-muted-foreground">
+                      <FileText size={48} className="opacity-20" />
+                      <p className="font-mono text-sm tracking-widest uppercase">Pré-visualização indisponível</p>
+                      <a href={modalArquivo.url} download={modalArquivo.nome}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20
+                                   border border-primary/40 hover:border-primary text-primary font-mono
+                                   text-xs tracking-widest rounded-lg transition-all uppercase">
+                        <Download size={14} /> Baixar arquivo
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Modal de detalhe */}
       <AnimatePresence>
         {modalResposta && (
@@ -324,20 +402,22 @@ export default function Respostas() {
                     <div className="flex flex-col gap-2">
                       <p className="text-xs font-mono text-foreground/60 tracking-widest uppercase">Arquivos Anexados</p>
                       <div className="flex flex-col gap-1.5">
-                        {modalResposta.arquivos.map((arq) => (
-                          <a key={arq.id}
-                            href={arq.url_s3}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-2 bg-secondary/50
-                                       rounded-lg hover:bg-secondary transition-colors group">
-                            <FileText size={13} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
-                            <span className="text-sm font-mono text-foreground/80 group-hover:text-foreground transition-colors flex-1 truncate">
-                              {arq.nome_arquivo}
-                            </span>
-                            <ExternalLink size={11} className="text-muted-foreground/40 group-hover:text-primary/60 transition-colors shrink-0" />
-                          </a>
-                        ))}
+                        {modalResposta.arquivos.map((arq) => {
+                          const tipo = tipoArquivo(arq.url_s3)
+                          const Icone = tipo === 'imagem' ? Image : tipo === 'pdf' ? FileType : FileText
+                          return (
+                            <button key={arq.id}
+                              onClick={() => setModalArquivo({ nome: arq.nome_arquivo, url: arq.url_s3 })}
+                              className="flex items-center gap-2 px-3 py-2 bg-secondary/50
+                                         rounded-lg hover:bg-secondary transition-colors group text-left w-full">
+                              <Icone size={13} className="text-primary/60 group-hover:text-primary transition-colors shrink-0" />
+                              <span className="text-sm font-mono text-foreground/80 group-hover:text-foreground transition-colors flex-1 truncate">
+                                {arq.nome_arquivo}
+                              </span>
+                              <ExternalLink size={11} className="text-muted-foreground/40 group-hover:text-primary/60 transition-colors shrink-0" />
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

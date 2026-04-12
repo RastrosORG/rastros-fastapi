@@ -13,6 +13,12 @@ function calcularIdade(dataNascimento: string): number {
   return idade
 }
 
+interface ArquivoDossie {
+  id: number
+  nome_arquivo: string
+  url_s3: string
+}
+
 interface Dossie {
   id: number
   nome: string
@@ -22,7 +28,7 @@ interface Dossie {
   local: string
   coordenadas?: string
   foto?: string
-  arquivos: string[]
+  arquivos: ArquivoDossie[]
   arquivosAvaliador: string[]
   equipes: string[]
   respostas: number
@@ -140,20 +146,20 @@ export default function ModalDetalhesDossie({ dossie: d, onFechar, onAbrirMapa, 
                 </p>
                 <div className="flex flex-col gap-2">
                   {d.arquivos.map(arq => (
-                    <div key={arq}
+                    <div key={arq.id}
                       className="flex items-center justify-between px-3 py-2.5 bg-black/20
                                  border border-white/5 rounded-lg group hover:border-primary/30 transition-all">
                       <div className="flex items-center gap-2">
                         <FileText size={14} className="text-primary/60" />
-                        <span className="text-sm font-mono text-muted-foreground">{arq}</span>
+                        <span className="text-sm font-mono text-muted-foreground">{arq.nome_arquivo}</span>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href="#" target="_blank" rel="noopener noreferrer"
+                        <a href={arq.url_s3} target="_blank" rel="noopener noreferrer"
                           className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all"
                           title="Abrir no navegador">
                           <ExternalLink size={13} />
                         </a>
-                        <a href="#" download={arq}
+                        <a href={arq.url_s3} download={arq.nome_arquivo}
                           className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground transition-all"
                           title="Baixar">
                           <Download size={13} />

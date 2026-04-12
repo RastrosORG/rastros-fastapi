@@ -4,7 +4,9 @@ import { useAuthStore } from '../store/authStore'
 import { obterEstado } from '../api/cronometroApi'
 import type { CronometroEstado } from '../api/cronometroApi'
 
-const WS_BASE = 'ws://localhost:8000'
+const WS_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000')
+  .replace(/^https:/, 'wss:')
+  .replace(/^http:/, 'ws:')
 
 export function useTimer() {
   const token = useAuthStore((s) => s.token)
