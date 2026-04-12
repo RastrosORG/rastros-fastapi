@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import subprocess
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import configuracoes
@@ -7,7 +9,15 @@ import app.db.todos_modelos  # noqa: F401
 
 from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuacao, cronometro, chat
 
-app = FastAPI(title="Rastros API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Executa migrations antes de aceitar requisições
+    subprocess.run(["alembic", "upgrade", "head"], check=True)
+    yield
+
+
+app = FastAPI(title="Rastros API", version="1.0.0", lifespan=lifespan)
 
 origins = [o.strip() for o in configuracoes.ALLOWED_ORIGINS.split(",") if o.strip()]
 
