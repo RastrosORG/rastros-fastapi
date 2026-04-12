@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-import subprocess
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import configuracoes
@@ -12,8 +12,9 @@ from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuac
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Executa migrations antes de aceitar requisições
-    subprocess.run(["alembic", "upgrade", "head"], check=True)
+    # Executa migrations sem bloquear o event loop — uvicorn responde ao port scan enquanto aguarda
+    proc = await asyncio.create_subprocess_exec("alembic", "upgrade", "head")
+    await proc.wait()
     yield
 
 
