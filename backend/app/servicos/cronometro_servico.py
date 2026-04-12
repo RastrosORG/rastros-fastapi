@@ -73,6 +73,8 @@ async def _aguardar_encerramento(segundos: int):
             restante = calcular_restante(c)
             if restante <= 0:
                 c.ativo = False
+                # Força segundos_pausados = duracao para calcular_restante retornar 0
+                c.segundos_pausados = c.duracao_segundos
                 db.commit()
                 db.refresh(c)
                 estado = serializar_estado(c)

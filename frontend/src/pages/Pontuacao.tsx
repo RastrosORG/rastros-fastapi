@@ -110,7 +110,7 @@ export default function Pontuacao() {
   }
 
   const top3     = ranking.slice(0, 3)
-  const maxPontos = ranking[0]?.pontos ?? 1
+  const maxPontos = Math.max(ranking[0]?.pontos ?? 0, 1)
 
   const atividadeDados = useMemo(() => achatar(atividadeRaw), [atividadeRaw])
   const evolucaoDados  = useMemo(() => achatar(evolucaoRaw),  [evolucaoRaw])

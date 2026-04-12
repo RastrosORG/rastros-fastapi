@@ -9,6 +9,7 @@ import AvaliarRespostas from '../pages/AvaliarRespostas'
 import ChatAvaliador from '../pages/ChatAvaliador'
 import Respostas from '../pages/Respostas'
 import Grupo from '../pages/Grupo'
+import Pontuacao from '../pages/Pontuacao'
 
 export const router = createBrowserRouter([
   {
@@ -23,7 +24,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '/home', element: <Home /> },
           { path: '/dossies', element: <Dossies /> },
-          { path: '/pontuacao', element: <div className="p-8 text-foreground">Pontuação</div> },
+          { path: '/pontuacao', element: <Pontuacao /> },
           { path: '/respostas', element: <Respostas /> },
           { path: '/grupo', element: <Grupo /> },
         ],
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
             element: <Layout />,
             children: [
               { path: '/grupos', element: <GerenciarGrupos /> },
+              { path: '/pontuacao', element: <Pontuacao /> },
               { path: '/avaliar', element: <AvaliarRespostas /> },
               { path: '/chat', element: <ChatAvaliador /> },
             ],
