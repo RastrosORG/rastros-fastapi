@@ -66,35 +66,17 @@ function PainelAvaliador() {
 
   async function handlePausar() {
     setCarregando(true)
-    try {
-      await pausarCronometro()
-    } catch {
-      //
-    } finally {
-      setCarregando(false)
-    }
+    try { await pausarCronometro() } catch { /**/ } finally { setCarregando(false) }
   }
 
   async function handleRetomar() {
     setCarregando(true)
-    try {
-      await retomarCronometro()
-    } catch {
-      //
-    } finally {
-      setCarregando(false)
-    }
+    try { await retomarCronometro() } catch { /**/ } finally { setCarregando(false) }
   }
 
   async function handleIncrementar(segundos: number) {
     setCarregando(true)
-    try {
-      await incrementarCronometro(segundos)
-    } catch {
-      //
-    } finally {
-      setCarregando(false)
-    }
+    try { await incrementarCronometro(segundos) } catch { /**/ } finally { setCarregando(false) }
   }
 
   if (!usuario?.is_avaliador) return null
@@ -102,86 +84,85 @@ function PainelAvaliador() {
   const btnBase =
     'flex items-center gap-1.5 px-3 py-1.5 border font-mono text-xs tracking-widest rounded-lg transition-all duration-200 uppercase disabled:opacity-40 disabled:cursor-not-allowed'
 
+  // Botões de tempo só fazem sentido quando o cronômetro está ativo ou pausado
+  const podeAdicionarTempo = temLock && (ativo || pausado) && segundosRestantes > 0
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {/* Botão lock */}
+
+        {/* Controlar / Bloquear */}
         <button
           onClick={handleLock}
           disabled={carregando}
-          title={temLock ? 'Liberar controle' : 'Assumir controle'}
+          title={temLock ? 'Bloquear controle' : 'Assumir controle'}
           className={`${btnBase} ${
             temLock
-              ? 'border-primary/60 bg-primary/10 text-primary hover:bg-primary/20'
+              ? 'border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/20'
               : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
           }`}
         >
           {temLock ? <Unlock size={13} /> : <Lock size={13} />}
-          {temLock ? 'Liberar' : 'Controlar'}
+          {temLock ? 'Bloquear' : 'Controlar'}
         </button>
 
-        {temLock && (
-          <>
-            {/* Iniciar / Reiniciar */}
-            {(!ativo && !pausado) || encerrado ? (
-              <button
-                onClick={() => setModalIniciar(true)}
-                disabled={carregando}
-                className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`}
-              >
-                <Play size={13} />
-                {encerrado || duracaoSegundos > 0 ? 'Reiniciar' : 'Iniciar'}
-              </button>
-            ) : null}
-
-            {/* Pausar */}
-            {ativo && (
-              <button
-                onClick={handlePausar}
-                disabled={carregando}
-                className={`${btnBase} border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20`}
-              >
-                <Pause size={13} /> Pausar
-              </button>
-            )}
-
-            {/* Retomar */}
-            {pausado && (
-              <button
-                onClick={handleRetomar}
-                disabled={carregando}
-                className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`}
-              >
-                <RotateCcw size={13} /> Retomar
-              </button>
-            )}
-
-            {/* +5min / +15min — só quando ativo ou pausado */}
-            {(ativo || pausado) && segundosRestantes > 0 && (
-              <>
-                <button
-                  onClick={() => handleIncrementar(300)}
-                  disabled={carregando}
-                  className={`${btnBase} border-border text-muted-foreground hover:border-primary/40 hover:text-foreground`}
-                >
-                  <Plus size={12} /> 5min
-                </button>
-                <button
-                  onClick={() => handleIncrementar(900)}
-                  disabled={carregando}
-                  className={`${btnBase} border-border text-muted-foreground hover:border-primary/40 hover:text-foreground`}
-                >
-                  <Plus size={12} /> 15min
-                </button>
-              </>
-            )}
-          </>
+        {/* Iniciar / Reiniciar */}
+        {((!ativo && !pausado) || encerrado) && (
+          <button
+            onClick={() => setModalIniciar(true)}
+            disabled={!temLock || carregando}
+            className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`}
+          >
+            <Play size={13} />
+            {encerrado || duracaoSegundos > 0 ? 'Reiniciar' : 'Iniciar'}
+          </button>
         )}
+
+        {/* Pausar */}
+        {ativo && (
+          <button
+            onClick={handlePausar}
+            disabled={!temLock || carregando}
+            className={`${btnBase} border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20`}
+          >
+            <Pause size={13} /> Pausar
+          </button>
+        )}
+
+        {/* Retomar */}
+        {pausado && (
+          <button
+            onClick={handleRetomar}
+            disabled={!temLock || carregando}
+            className={`${btnBase} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20`}
+          >
+            <RotateCcw size={13} /> Retomar
+          </button>
+        )}
+
+        {/* +5min */}
+        <button
+          onClick={() => handleIncrementar(300)}
+          disabled={!podeAdicionarTempo || carregando}
+          className={`${btnBase} border-border text-muted-foreground hover:border-primary/40 hover:text-foreground`}
+        >
+          <Plus size={12} /> 5min
+        </button>
+
+        {/* +15min */}
+        <button
+          onClick={() => handleIncrementar(900)}
+          disabled={!podeAdicionarTempo || carregando}
+          className={`${btnBase} border-border text-muted-foreground hover:border-primary/40 hover:text-foreground`}
+        >
+          <Plus size={12} /> 15min
+        </button>
+
       </div>
 
-      {/* Modal de iniciar */}
+      {/* Modal de definir duração */}
       {modalIniciar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setModalIniciar(false)}
@@ -205,6 +186,8 @@ function PainelAvaliador() {
                   max="23"
                   value={horasInput}
                   onChange={(e) => setHorasInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleIniciar()}
+                  autoFocus
                   className="bg-input border border-border rounded-lg px-3 py-2 font-mono text-sm
                              text-foreground focus:outline-none focus:border-primary/60 text-center"
                 />
@@ -219,6 +202,7 @@ function PainelAvaliador() {
                   max="59"
                   value={minutosInput}
                   onChange={(e) => setMinutosInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleIniciar()}
                   className="bg-input border border-border rounded-lg px-3 py-2 font-mono text-sm
                              text-foreground focus:outline-none focus:border-primary/60 text-center"
                 />
