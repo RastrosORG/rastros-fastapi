@@ -1,14 +1,15 @@
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { X, Printer, Shield } from 'lucide-react'
+import { X, Printer, Shield, Trash2 } from 'lucide-react'
 import type { CredencialAPI } from '../../api/gruposApi'
 
 interface Props {
   credenciais: CredencialAPI[]
   onFechar: () => void
+  onLimpar: () => void
 }
 
-export default function ModalCredenciais({ credenciais, onFechar }: Props) {
+export default function ModalCredenciais({ credenciais, onFechar, onLimpar }: Props) {
   const porGrupo = credenciais.reduce<Record<string, { nome: string; lista: CredencialAPI[] }>>((acc, c) => {
     if (!acc[c.grupo_id]) acc[c.grupo_id] = { nome: c.grupo_nome, lista: [] }
     acc[c.grupo_id].lista.push(c)
@@ -93,6 +94,13 @@ export default function ModalCredenciais({ credenciais, onFechar }: Props) {
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase">
                 <Printer size={14} /> Imprimir
+              </button>
+              <button onClick={onLimpar}
+                title="Limpar credenciais salvas"
+                className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground
+                           hover:text-destructive hover:border-destructive/40 font-mono text-xs tracking-widest
+                           rounded-lg transition-all uppercase">
+                <Trash2 size={14} /> Limpar
               </button>
               <button onClick={onFechar}
                 className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all">

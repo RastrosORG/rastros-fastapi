@@ -2,7 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 import type { MensagemChat } from '../api/chatApi'
 
-const WS_BASE = 'ws://localhost:8000/chat'
+// Deriva o URL do WebSocket a partir do VITE_API_URL:
+// http://  → ws://    (desenvolvimento)
+// https:// → wss://   (produção)
+const WS_BASE = ((import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000')
+  .replace('https://', 'wss://')
+  .replace('http://', 'ws://') + '/chat'
 const BACKOFF_MAX = 30_000   // teto de 30s entre tentativas
 const BACKOFF_FATOR = 2      // duplica a cada falha
 

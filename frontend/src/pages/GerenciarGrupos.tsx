@@ -35,7 +35,12 @@ export default function GerenciarGrupos() {
 
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [carregando, setCarregando] = useState(true)
-  const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>([])
+  const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>(() => {
+    try {
+      const salvas = localStorage.getItem('rastros_credenciais')
+      return salvas ? (JSON.parse(salvas) as CredencialAPI[]) : []
+    } catch { return [] }
+  })
 
   const [ultimaGeracao] = useState<Date | null>(null)
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
@@ -64,6 +69,11 @@ export default function GerenciarGrupos() {
   const [logs, setLogs] = useState<LogExclusaoUsuarioAPI[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  // Persiste credenciais no localStorage sempre que mudam
+  useEffect(() => {
+    localStorage.setItem('rastros_credenciais', JSON.stringify(todasCredenciais))
+  }, [todasCredenciais])
 
   useEffect(() => {
     carregarGrupos()
@@ -320,7 +330,7 @@ export default function GerenciarGrupos() {
                 className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase">
-                <Key size={15} /> Credenciais
+                <Key size={15} /> Credenciais ({todasCredenciais.length})
               </button>
             )}
             {grupos.length > 0 && (
@@ -510,7 +520,11 @@ export default function GerenciarGrupos() {
 
       <AnimatePresence>
         {modalCredenciais && (
-          <ModalCredenciais credenciais={todasCredenciais} onFechar={() => setModalCredenciais(false)} />
+          <ModalCredenciais
+            credenciais={todasCredenciais}
+            onFechar={() => setModalCredenciais(false)}
+            onLimpar={() => { setTodasCredenciais([]); setModalCredenciais(false) }}
+          />
         )}
       </AnimatePresence>
 
