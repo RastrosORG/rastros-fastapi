@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import configuracoes
@@ -10,11 +11,15 @@ import app.db.todos_modelos  # noqa: F401
 from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuacao, cronometro, chat
 
 
+async def _rodar_migrations():
+    proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "alembic", "upgrade", "head")
+    await proc.wait()
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Executa migrations sem bloquear o event loop — uvicorn responde ao port scan enquanto aguarda
-    proc = await asyncio.create_subprocess_exec("alembic", "upgrade", "head")
-    await proc.wait()
+    # Migrations em background — uvicorn sobe e responde imediatamente
+    asyncio.create_task(_rodar_migrations())
     yield
 
 
