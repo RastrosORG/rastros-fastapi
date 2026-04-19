@@ -15,6 +15,7 @@ class Usuario(Base):
     ativo = Column(Boolean, default=True, nullable=False)
     nome_custom = Column(String(100), nullable=True)
     nome_alterado = Column(Boolean, default=False, nullable=False)
+    aceitou_termos = Column(Boolean, default=False, nullable=False)
 
     # Relacionamentos
     grupo = relationship("MembroGrupo", back_populates="usuario", uselist=False)

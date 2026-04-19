@@ -4,7 +4,7 @@ from app.core.dependencias import get_db, get_avaliador, get_usuario_atual
 from app.schemas.grupo import (
     GrupoOutput, GerarUsuariosInput, GerarUsuariosOutput,
     AdicionarMembroOutput, AtualizarNomeGrupoInput,
-    ExcluirInput, LogExclusaoUsuarioOutput,
+    ExcluirInput, LogExclusaoUsuarioOutput, ListarCredenciaisOutput,
 )
 from app.servicos import grupo_servico
 
@@ -40,7 +40,15 @@ def listar_todos(
 ):
     return grupo_servico.listar_grupos(db)
 
-# Literal antes de parametrizado — evita que FastAPI trate "log-exclusoes" como grupo_id
+# Literal antes de parametrizado — evita que FastAPI trate strings como grupo_id
+@router.get("/credenciais", response_model=ListarCredenciaisOutput)
+def listar_credenciais(
+    db: Session = Depends(get_db),
+    _=Depends(get_avaliador)
+):
+    return grupo_servico.listar_credenciais(db)
+
+
 @router.get("/log-exclusoes", response_model=list[LogExclusaoUsuarioOutput])
 def listar_log_exclusoes(
     db: Session = Depends(get_db),

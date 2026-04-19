@@ -28,11 +28,29 @@ export default function ChatAvaliador() {
   const grupoIdNum = grupoSelecionado ? parseInt(grupoSelecionado) : null
   const { mensagens, avaliadorEntrou, enviar, entrar, sair } = useChatGrupoAvaliador(grupoIdNum)
 
-  // Carrega lista de grupos do avaliador
+  // Carrega lista de grupos e re-verifica a cada 20s para detectar renomeações
   useEffect(() => {
     listarGruposChat()
       .then(dados => setGrupos(dados.map(mapGrupo)))
       .finally(() => setCarregando(false))
+
+    const intervalo = setInterval(() => {
+      listarGruposChat()
+        .then(dados => {
+          setGrupos(prev => {
+            const novos = dados.map(mapGrupo)
+            // Atualiza só o nome — preserva estado local de chamadas e naoLidas
+            return novos.map(novo => {
+              const anterior = prev.find(g => g.id === novo.id)
+              if (!anterior) return novo
+              return { ...anterior, nome: novo.nome }
+            })
+          })
+        })
+        .catch(() => {})
+    }, 20000)
+
+    return () => clearInterval(intervalo)
   }, [])
 
   // Recebe notificações de chamada via WS

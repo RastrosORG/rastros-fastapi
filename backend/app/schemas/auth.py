@@ -11,6 +11,7 @@ class TokenOutput(BaseModel):
     is_avaliador: bool
     usuario_id: int
     login: str
+    aceitou_termos: bool
 
 class CadastroAvaliadorInput(BaseModel):
     login: str

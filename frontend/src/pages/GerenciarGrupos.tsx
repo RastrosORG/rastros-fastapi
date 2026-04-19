@@ -22,6 +22,7 @@ import ModalLogExclusoesGrupos from '../components/grupos/ModalLogExclusoesGrupo
 import {
   listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
   moverMembro, adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
+  listarCredenciais,
 } from '../api/gruposApi'
 import type { CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
 import { useAuthStore } from '../store/authStore'
@@ -37,9 +38,17 @@ export default function GerenciarGrupos() {
   const [carregando, setCarregando] = useState(true)
   const [todasCredenciais, setTodasCredenciais] = useState<CredencialAPI[]>(() => {
     try {
-      const salvas = localStorage.getItem('rastros_credenciais')
-      return salvas ? (JSON.parse(salvas) as CredencialAPI[]) : []
+      const cache = localStorage.getItem('rastros_credenciais_cache')
+      if (!cache) return []
+      return (JSON.parse(cache) as { data: CredencialAPI[] }).data
     } catch { return [] }
+  })
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(() => {
+    try {
+      const cache = localStorage.getItem('rastros_credenciais_cache')
+      if (!cache) return null
+      return (JSON.parse(cache) as { ultima_atualizacao: string | null }).ultima_atualizacao
+    } catch { return null }
   })
 
   const [ultimaGeracao] = useState<Date | null>(null)
@@ -70,11 +79,6 @@ export default function GerenciarGrupos() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  // Persiste credenciais no localStorage sempre que mudam
-  useEffect(() => {
-    localStorage.setItem('rastros_credenciais', JSON.stringify(todasCredenciais))
-  }, [todasCredenciais])
-
   useEffect(() => {
     carregarGrupos()
   }, [])
@@ -85,7 +89,7 @@ export default function GerenciarGrupos() {
       const dados = await listarTodosGrupos()
       setGrupos(dados.map(g => ({
         id: g.id.toString(),
-        nome: g.nome,
+        nome: g.nome_custom || g.nome,
         avaliadorId: g.avaliador_id.toString(),
         avaliadorNome: g.avaliador_nome,
         membros: g.membros.map(m => ({
@@ -99,6 +103,20 @@ export default function GerenciarGrupos() {
       console.error('Erro ao carregar grupos:', e)
     } finally {
       setCarregando(false)
+    }
+  }
+
+  async function carregarCredenciais() {
+    try {
+      const resultado = await listarCredenciais()
+      setTodasCredenciais(resultado.credenciais)
+      setUltimaAtualizacao(resultado.ultima_atualizacao)
+      localStorage.setItem('rastros_credenciais_cache', JSON.stringify({
+        data: resultado.credenciais,
+        ultima_atualizacao: resultado.ultima_atualizacao,
+      }))
+    } catch (e) {
+      console.error('Erro ao carregar credenciais:', e)
     }
   }
 
@@ -131,8 +149,7 @@ export default function GerenciarGrupos() {
     try {
       const qtd = parseInt(qtdUsuarios)
       const resultado = await gerarUsuarios(qtd)
-      setTodasCredenciais(resultado.credenciais)
-      await carregarGrupos()
+      await Promise.all([carregarGrupos(), carregarCredenciais()])
       setModalConfirmar(false)
       setQtdUsuarios('')
       mostrarToast(`${resultado.usuarios_criados} usuários gerados em ${resultado.grupos_criados} grupos!`, 'ok')
@@ -146,9 +163,8 @@ export default function GerenciarGrupos() {
   // ── Adicionar um usuário ──────────────────────────────────────
   async function adicionarUmUsuario() {
     try {
-      const credencial = await adicionarMembro()
-      setTodasCredenciais(prev => [...prev, credencial])
-      await carregarGrupos()
+      await adicionarMembro()
+      await Promise.all([carregarGrupos(), carregarCredenciais()])
       setModalAdicionarUm(false)
       mostrarToast('Usuário adicionado!', 'ok')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,12 +341,12 @@ export default function GerenciarGrupos() {
                 <ClipboardList size={15} /> Log Exclusões
               </button>
             )}
-            {todasCredenciais.length > 0 && (
-              <button onClick={() => setModalCredenciais(true)}
+            {grupos.length > 0 && (
+              <button onClick={() => { carregarCredenciais(); setModalCredenciais(true) }}
                 className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase">
-                <Key size={15} /> Credenciais ({todasCredenciais.length})
+                <Key size={15} /> Credenciais{todasCredenciais.length > 0 ? ` (${todasCredenciais.length})` : ''}
               </button>
             )}
             {grupos.length > 0 && (
@@ -522,8 +538,9 @@ export default function GerenciarGrupos() {
         {modalCredenciais && (
           <ModalCredenciais
             credenciais={todasCredenciais}
+            ultimaAtualizacao={ultimaAtualizacao}
             onFechar={() => setModalCredenciais(false)}
-            onLimpar={() => { setTodasCredenciais([]); setModalCredenciais(false) }}
+            onAtualizar={carregarCredenciais}
           />
         )}
       </AnimatePresence>

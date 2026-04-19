@@ -1,15 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Printer, Shield, Trash2 } from 'lucide-react'
+import { X, Printer, Shield, RefreshCw } from 'lucide-react'
 import type { CredencialAPI } from '../../api/gruposApi'
 
 interface Props {
   credenciais: CredencialAPI[]
+  ultimaAtualizacao: string | null
   onFechar: () => void
-  onLimpar: () => void
+  onAtualizar: () => Promise<void>
 }
 
-export default function ModalCredenciais({ credenciais, onFechar, onLimpar }: Props) {
+export default function ModalCredenciais({ credenciais, ultimaAtualizacao, onFechar, onAtualizar }: Props) {
+  const [atualizando, setAtualizando] = useState(false)
+
+  async function handleAtualizar() {
+    setAtualizando(true)
+    try { await onAtualizar() } finally { setAtualizando(false) }
+  }
+
+  function formatarData(iso: string | null) {
+    if (!iso) return null
+    return new Date(iso).toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  }
   const porGrupo = credenciais.reduce<Record<string, { nome: string; lista: CredencialAPI[] }>>((acc, c) => {
     if (!acc[c.grupo_id]) acc[c.grupo_id] = { nome: c.grupo_nome, lista: [] }
     acc[c.grupo_id].lista.push(c)
@@ -87,20 +102,25 @@ export default function ModalCredenciais({ credenciais, onFechar, onLimpar }: Pr
               <h3 className="text-white font-bold text-lg mt-0.5" style={{ fontFamily: 'Syne, sans-serif' }}>
                 Credenciais Geradas
               </h3>
+              {ultimaAtualizacao && (
+                <p className="text-xs font-mono text-muted-foreground/60 mt-0.5">
+                  Atualizado em {formatarData(ultimaAtualizacao)}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={handleAtualizar} disabled={atualizando}
+                className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground
+                           hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
+                           rounded-lg transition-all uppercase disabled:opacity-50">
+                <RefreshCw size={14} className={atualizando ? 'animate-spin' : ''} />
+                {atualizando ? 'Atualizando...' : 'Atualizar'}
+              </button>
               <button onClick={() => window.print()}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase">
                 <Printer size={14} /> Imprimir
-              </button>
-              <button onClick={onLimpar}
-                title="Limpar credenciais salvas"
-                className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground
-                           hover:text-destructive hover:border-destructive/40 font-mono text-xs tracking-widest
-                           rounded-lg transition-all uppercase">
-                <Trash2 size={14} /> Limpar
               </button>
               <button onClick={onFechar}
                 className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all">

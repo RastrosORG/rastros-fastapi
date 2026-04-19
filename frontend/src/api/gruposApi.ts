@@ -90,3 +90,13 @@ export async function listarLogExclusoesGrupos(): Promise<LogExclusaoUsuarioAPI[
   const res = await api.get<LogExclusaoUsuarioAPI[]>('/grupos/log-exclusoes')
   return res.data
 }
+
+export interface ListarCredenciaisOutput {
+  credenciais: CredencialAPI[]
+  ultima_atualizacao: string | null
+}
+
+export async function listarCredenciais(): Promise<ListarCredenciaisOutput> {
+  const res = await api.get<ListarCredenciaisOutput>('/grupos/credenciais')
+  return res.data
+}

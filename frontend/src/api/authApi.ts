@@ -6,11 +6,16 @@ export interface LoginResponse {
   is_avaliador: boolean
   usuario_id: number
   login: string
+  aceitou_termos: boolean
 }
 
 export async function loginApi(login: string, senha: string): Promise<LoginResponse> {
   const response = await api.post<LoginResponse>('/auth/login', { login, senha })
   return response.data
+}
+
+export async function aceitarTermos(): Promise<void> {
+  await api.post('/auth/aceitar-termos')
 }
 
 export async function cadastrarAvaliador(

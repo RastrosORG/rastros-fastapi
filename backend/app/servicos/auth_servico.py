@@ -22,8 +22,16 @@ def login(dados: LoginInput, db: Session) -> TokenOutput:
         access_token=token,
         is_avaliador=bool(usuario.is_avaliador),
         usuario_id=int(usuario.id),
-        login=str(usuario.login)
+        login=str(usuario.login),
+        aceitou_termos=bool(usuario.aceitou_termos),
     )
+
+def aceitar_termos(usuario_id: int, db: Session) -> None:
+    usuario = db.get(Usuario, usuario_id)
+    if usuario:
+        usuario.aceitou_termos = True  # type: ignore[assignment]
+        db.commit()
+
 
 def criar_usuario(
     login: str,

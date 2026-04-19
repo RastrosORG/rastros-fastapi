@@ -30,9 +30,29 @@ export default function ChatWidget() {
 
   const { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar } = useChatGrupo(grupoId)
 
-  // Busca o grupo do usuário na montagem
+  // Busca o grupo do usuário na montagem e re-verifica a cada 20s
+  // para detectar mudanças de nome, membros ou troca de grupo
   useEffect(() => {
-    meuGrupo().then(g => setGrupo(g)).catch(() => {})
+    function atualizar() {
+      meuGrupo()
+        .then(g => {
+          setGrupo(prev => {
+            if (!prev) return g
+            const idMudou = prev.id !== g.id
+            const nomeMudou = prev.nome_custom !== g.nome_custom || prev.nome !== g.nome
+            const membrosMudaram =
+              prev.membros.length !== g.membros.length ||
+              prev.membros.some((m, i) => m.usuario.id !== g.membros[i]?.usuario.id ||
+                m.usuario.nome_custom !== g.membros[i]?.usuario.nome_custom)
+            if (idMudou || nomeMudou || membrosMudaram) return g
+            return prev
+          })
+        })
+        .catch(() => {})
+    }
+    atualizar()
+    const intervalo = setInterval(atualizar, 20000)
+    return () => clearInterval(intervalo)
   }, [])
 
   useEffect(() => {

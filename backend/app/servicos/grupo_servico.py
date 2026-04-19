@@ -8,8 +8,9 @@ from app.modelos.usuario import Usuario
 from app.modelos.grupo import Grupo, MembroGrupo
 from app.modelos.resposta import Resposta, ArquivoResposta
 from app.modelos.log_exclusao_usuario import LogExclusaoUsuario
+from app.modelos.credencial_usuario import CredencialUsuario
 from app.core.seguranca import hash_senha
-from app.schemas.grupo import GerarUsuariosOutput, UsuarioCredencial, AdicionarMembroOutput, GrupoOutput, AtualizarNomeGrupoInput
+from app.schemas.grupo import GerarUsuariosOutput, UsuarioCredencial, AdicionarMembroOutput, GrupoOutput, AtualizarNomeGrupoInput, ListarCredenciaisOutput, CredencialOutput
 from app.servicos import storage_servico
 
 # Controle de geração simultânea — em produção usar Redis
@@ -64,6 +65,17 @@ def mover_membro(usuario_id: int, novo_grupo_id: int, db: Session) -> Grupo:
         raise HTTPException(status_code=400, detail="Grupo destino já tem 4 membros")
 
     membro.grupo_id = novo_grupo_id  # type: ignore
+
+    # Atualiza grupo na tabela de credenciais
+    credencial = db.query(CredencialUsuario).filter(
+        CredencialUsuario.usuario_id == usuario_id
+    ).first()
+    if credencial:
+        novo_grupo = db.get(Grupo, novo_grupo_id)
+        credencial.grupo_id = novo_grupo_id  # type: ignore
+        if novo_grupo:
+            credencial.grupo_nome = str(novo_grupo.nome_custom or novo_grupo.nome)  # type: ignore
+
     db.commit()
     # Uma única busca com eager load ao final
     return buscar_grupo(novo_grupo_id, db)
@@ -178,6 +190,15 @@ def gerar_usuarios(
                 )
                 db.add(membro)
 
+                credencial_row = CredencialUsuario(
+                    usuario_id=int(usuario.id),  # type: ignore
+                    login=login,
+                    senha=senha,
+                    grupo_id=int(grupo.id),  # type: ignore
+                    grupo_nome=str(grupo.nome),
+                )
+                db.add(credencial_row)
+
                 credenciais.append(UsuarioCredencial(
                     id=int(usuario.id),  # type: ignore
                     login=str(usuario.login),
@@ -284,6 +305,15 @@ def adicionar_membro(db: Session) -> AdicionarMembroOutput:
         grupo_id=int(grupo_destino.id)  # type: ignore
     )
     db.add(membro)
+
+    credencial_row = CredencialUsuario(
+        usuario_id=int(novo_usuario.id),  # type: ignore
+        login=login,
+        senha=senha,
+        grupo_id=int(grupo_destino.id),  # type: ignore
+        grupo_nome=str(grupo_destino.nome),
+    )
+    db.add(credencial_row)
     db.commit()
 
     return AdicionarMembroOutput(
@@ -327,6 +357,13 @@ def excluir_usuario_permanente(
     )
     db.add(log)
     db.flush()
+
+    # Remove a credencial da tabela de credenciais
+    credencial = db.query(CredencialUsuario).filter(
+        CredencialUsuario.usuario_id == usuario_id
+    ).first()
+    if credencial:
+        db.delete(credencial)
 
     # Remove o membro do grupo
     if membro:
@@ -396,6 +433,28 @@ def excluir_grupo_permanente(
 
     db.delete(grupo)
     db.commit()
+
+
+def listar_credenciais(db: Session) -> ListarCredenciaisOutput:
+    rows = (
+        db.query(CredencialUsuario)
+        .order_by(CredencialUsuario.grupo_id, CredencialUsuario.login)
+        .all()
+    )
+    ultima = max((r.criado_em for r in rows), default=None)
+    return ListarCredenciaisOutput(
+        credenciais=[
+            CredencialOutput(
+                id=int(r.usuario_id),  # type: ignore
+                login=str(r.login),
+                senha=str(r.senha),
+                grupo_id=int(r.grupo_id),  # type: ignore
+                grupo_nome=str(r.grupo_nome),
+            )
+            for r in rows
+        ],
+        ultima_atualizacao=ultima,
+    )
 
 
 def listar_log_exclusoes_usuarios(db: Session) -> list[LogExclusaoUsuario]:

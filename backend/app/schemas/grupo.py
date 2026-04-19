@@ -3,6 +3,7 @@ from typing import Optional, Any
 from datetime import datetime
 
 
+
 class ExcluirInput(BaseModel):
     motivo: str
 
@@ -83,3 +84,19 @@ class GerarUsuariosOutput(BaseModel):
 
 class AdicionarMembroOutput(BaseModel):
     credencial: UsuarioCredencial
+
+
+class CredencialOutput(BaseModel):
+    id: int
+    login: str
+    senha: str
+    grupo_id: int
+    grupo_nome: str
+
+    class Config:
+        from_attributes = True
+
+
+class ListarCredenciaisOutput(BaseModel):
+    credenciais: list[CredencialOutput]
+    ultima_atualizacao: Optional[datetime] = None

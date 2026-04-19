@@ -26,6 +26,14 @@ def cadastro_avaliador(dados: CadastroAvaliadorInput, db: Session = Depends(get_
         db=db,
     )
 
+@router.post("/aceitar-termos", status_code=204)
+def aceitar_termos(
+    db: Session = Depends(get_db),
+    usuario_atual=Depends(get_usuario_atual),
+):
+    auth_servico.aceitar_termos(int(usuario_atual.id), db)
+
+
 @router.get("/me", response_model=UsuarioOutput)
 def me(usuario_atual = Depends(get_usuario_atual)):
     return usuario_atual

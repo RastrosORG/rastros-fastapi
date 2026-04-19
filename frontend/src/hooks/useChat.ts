@@ -2,16 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 import type { MensagemChat } from '../api/chatApi'
 
-// Deriva o URL do WebSocket a partir do VITE_API_URL:
-// http://  → ws://    (desenvolvimento)
-// https:// → wss://   (produção)
 const WS_BASE = ((import.meta.env.VITE_API_URL as string) ?? 'http://localhost:8000')
   .replace('https://', 'wss://')
   .replace('http://', 'ws://') + '/chat'
-const BACKOFF_MAX = 30_000   // teto de 30s entre tentativas
-const BACKOFF_FATOR = 2      // duplica a cada falha
+const BACKOFF_MAX = 30_000
+const BACKOFF_FATOR = 2
 
-// Som ascendente — avaliador entrou
 function tocarAlertaEntrada() {
   try {
     const ctx = new AudioContext()
@@ -28,7 +24,6 @@ function tocarAlertaEntrada() {
   } catch (_) { /* silencia se browser bloquear */ }
 }
 
-// Som descendente — avaliador saiu
 function tocarAlertaSaida() {
   try {
     const ctx = new AudioContext()
@@ -45,6 +40,22 @@ function tocarAlertaSaida() {
   } catch (_) { /* silencia se browser bloquear */ }
 }
 
+// Fecha um WebSocket silenciando todos os seus handlers para evitar
+// que eventos do socket antigo afetem o estado após a substituição
+function fecharSilencioso(ws: WebSocket) {
+  ws.onopen = null
+  ws.onmessage = null
+  ws.onclose = null
+  ws.onerror = null
+  if (ws.readyState < WebSocket.CLOSING) ws.close()
+}
+
+// Adiciona mensagem ao array apenas se ainda não existe (deduplicação por id)
+function adicionarSemDuplicar(prev: MensagemChat[], nova: MensagemChat): MensagemChat[] {
+  if (prev.some(m => m.id === nova.id)) return prev
+  return [...prev, nova]
+}
+
 // ── Hook para usuários comuns (ChatWidget) ────────────────────────────
 
 export function useChatGrupo(grupoId: number | null) {
@@ -54,7 +65,6 @@ export function useChatGrupo(grupoId: number | null) {
   const [chamouAvaliador, setChamouAvaliador] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
 
-  // Refs para controlar reconexão sem causar re-renders
   const destroyedRef = useRef(false)
   const retryDelayRef = useRef(1000)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -62,11 +72,14 @@ export function useChatGrupo(grupoId: number | null) {
   const conectar = useCallback(() => {
     if (destroyedRef.current || !grupoId || !token) return
 
+    // Fecha o socket anterior silenciosamente antes de criar um novo
+    if (wsRef.current) fecharSilencioso(wsRef.current)
+
     const ws = new WebSocket(`${WS_BASE}/ws/grupo/${grupoId}?token=${token}`)
     wsRef.current = ws
 
     ws.onopen = () => {
-      retryDelayRef.current = 1000 // reset backoff após conexão bem-sucedida
+      retryDelayRef.current = 1000
     }
 
     ws.onmessage = (e) => {
@@ -77,40 +90,46 @@ export function useChatGrupo(grupoId: number | null) {
         setAvaliadorPresente(msg.avaliador_presente)
         setChamouAvaliador(msg.chamou_avaliador)
       } else if (msg.evento === 'mensagem') {
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
       } else if (msg.evento === 'avaliador_entrou') {
         setAvaliadorPresente(true)
         setChamouAvaliador(false)
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
         tocarAlertaEntrada()
       } else if (msg.evento === 'avaliador_saiu') {
         setAvaliadorPresente(false)
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
         tocarAlertaSaida()
       }
       // 'ping' ignorado intencionalmente
     }
 
     ws.onclose = (e) => {
-      // Código 4001 = token inválido — não tenta reconectar
+      // Ignora se este socket foi substituído por um mais novo
+      if (wsRef.current !== ws) return
       if (destroyedRef.current || e.code === 4001) return
       retryTimerRef.current = setTimeout(() => {
         retryDelayRef.current = Math.min(retryDelayRef.current * BACKOFF_FATOR, BACKOFF_MAX)
         conectar()
       }, retryDelayRef.current)
     }
+
+    ws.onerror = () => ws.close()
   }, [grupoId, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!grupoId || !token) return
     destroyedRef.current = false
     retryDelayRef.current = 1000
+    setMensagens([])
+    setAvaliadorPresente(false)
+    setChamouAvaliador(false)
     conectar()
 
     return () => {
       destroyedRef.current = true
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-      wsRef.current?.close()
+      if (wsRef.current) fecharSilencioso(wsRef.current)
     }
   }, [grupoId, token, conectar])
 
@@ -141,6 +160,8 @@ export function useChatGrupoAvaliador(grupoId: number | null) {
   const conectar = useCallback(() => {
     if (destroyedRef.current || !grupoId || !token) return
 
+    if (wsRef.current) fecharSilencioso(wsRef.current)
+
     const ws = new WebSocket(`${WS_BASE}/ws/grupo/${grupoId}?token=${token}`)
     wsRef.current = ws
 
@@ -155,24 +176,27 @@ export function useChatGrupoAvaliador(grupoId: number | null) {
         setMensagens(msg.dados)
         setAvaliadorEntrou(msg.avaliador_presente)
       } else if (msg.evento === 'mensagem') {
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
       } else if (msg.evento === 'avaliador_entrou') {
         setAvaliadorEntrou(true)
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
       } else if (msg.evento === 'avaliador_saiu') {
         setAvaliadorEntrou(false)
-        setMensagens(prev => [...prev, msg.dados])
+        setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
       }
       // 'ping' ignorado intencionalmente
     }
 
     ws.onclose = (e) => {
+      if (wsRef.current !== ws) return
       if (destroyedRef.current || e.code === 4001) return
       retryTimerRef.current = setTimeout(() => {
         retryDelayRef.current = Math.min(retryDelayRef.current * BACKOFF_FATOR, BACKOFF_MAX)
         conectar()
       }, retryDelayRef.current)
     }
+
+    ws.onerror = () => ws.close()
   }, [grupoId, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -186,7 +210,7 @@ export function useChatGrupoAvaliador(grupoId: number | null) {
     return () => {
       destroyedRef.current = true
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-      wsRef.current?.close()
+      if (wsRef.current) fecharSilencioso(wsRef.current)
     }
   }, [grupoId, token, conectar])
 
@@ -217,11 +241,15 @@ export function useChatNotificacoes(
   const destroyedRef = useRef(false)
   const retryDelayRef = useRef(1000)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
 
   const conectar = useCallback(() => {
     if (destroyedRef.current || !token) return
 
+    if (wsRef.current) fecharSilencioso(wsRef.current)
+
     const ws = new WebSocket(`${WS_BASE}/ws/avaliador?token=${token}`)
+    wsRef.current = ws
 
     ws.onopen = () => {
       retryDelayRef.current = 1000
@@ -236,12 +264,15 @@ export function useChatNotificacoes(
     }
 
     ws.onclose = (e) => {
+      if (wsRef.current !== ws) return
       if (destroyedRef.current || e.code === 4001) return
       retryTimerRef.current = setTimeout(() => {
         retryDelayRef.current = Math.min(retryDelayRef.current * BACKOFF_FATOR, BACKOFF_MAX)
         conectar()
       }, retryDelayRef.current)
     }
+
+    ws.onerror = () => ws.close()
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -253,6 +284,7 @@ export function useChatNotificacoes(
     return () => {
       destroyedRef.current = true
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      if (wsRef.current) fecharSilencioso(wsRef.current)
     }
   }, [token, conectar])
 }

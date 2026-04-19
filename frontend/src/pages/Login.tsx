@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { loginApi, cadastrarAvaliador } from '../api/authApi'
+import { loginApi, cadastrarAvaliador, aceitarTermos } from '../api/authApi'
 
 type Modo = 'login' | 'cadastro'
 
@@ -21,6 +21,13 @@ export default function Login() {
   const [carregando, setCarregando] = useState(false)
   const [loginInput, setLoginInput] = useState('')
   const [senhaInput, setSenhaInput] = useState('')
+
+  // Termos para usuário comum — dados ficam pendentes até aceitar
+  const [dadosPendentes, setDadosPendentes] = useState<{
+    token: string; id: number; login: string
+  } | null>(null)
+  const [mostrarTermosUsuario, setMostrarTermosUsuario] = useState(false)
+  const [concordouUsuario, setConcordouUsuario] = useState(false)
 
   // Cadastro
   const [cadLogin, setCadLogin] = useState('')
@@ -41,6 +48,27 @@ export default function Login() {
     setErro('')
     try {
       const dados = await loginApi(loginInput, senhaInput)
+
+      // Usuário comum: verifica localStorage primeiro, depois o banco
+      if (!dados.is_avaliador) {
+        const chave = `termos_aceitos_${dados.usuario_id}`
+        const noLocal = !!localStorage.getItem(chave)
+        const noBanco = dados.aceitou_termos
+
+        if (!noLocal && noBanco) {
+          // Aceitou em outro dispositivo — sincroniza o localStorage
+          localStorage.setItem(chave, '1')
+        }
+
+        if (!noLocal && !noBanco) {
+          // Primeira vez em qualquer dispositivo — mostra o modal
+          setDadosPendentes({ token: dados.access_token, id: dados.usuario_id, login: dados.login })
+          setConcordouUsuario(false)
+          setMostrarTermosUsuario(true)
+          return
+        }
+      }
+
       setAuth(dados.access_token, {
         id: dados.usuario_id,
         login: dados.login,
@@ -52,6 +80,23 @@ export default function Login() {
     } finally {
       setCarregando(false)
     }
+  }
+
+  async function handleAceitarTermosUsuario() {
+    if (!dadosPendentes) return
+    // Persiste no banco e no localStorage simultaneamente
+    localStorage.setItem(`termos_aceitos_${dadosPendentes.id}`, '1')
+    setAuth(dadosPendentes.token, { id: dadosPendentes.id, login: dadosPendentes.login, is_avaliador: false })
+    aceitarTermos().catch(() => {}) // dispara sem bloquear — token já está no store
+    setMostrarTermosUsuario(false)
+    setDadosPendentes(null)
+    navigate('/home')
+  }
+
+  function handleRecusarTermosUsuario() {
+    setMostrarTermosUsuario(false)
+    setDadosPendentes(null)
+    setConcordouUsuario(false)
   }
 
   function validarCadastro(): boolean {
@@ -315,7 +360,96 @@ export default function Login() {
         </AnimatePresence>
       </motion.div>
 
-      {/* Modal Termos */}
+      {/* Modal Termos — usuário comum (primeira vez) */}
+      <AnimatePresence>
+        {mostrarTermosUsuario && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.25 }}
+              className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[85vh]
+                         flex flex-col shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="font-mono text-sm tracking-widest uppercase text-foreground">
+                  Termo de Responsabilidade
+                </h3>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-5 text-sm text-muted-foreground leading-relaxed font-mono space-y-4">
+                <p>
+                  <span className="text-foreground font-bold">Comprometo-me</span> a tratar os dados pessoais
+                  de pessoas desaparecidas com o mais alto grau de responsabilidade, zelo e respeito à
+                  dignidade humana, em estrita observância à{' '}
+                  <span className="text-primary">Lei nº 13.709/2018</span> – LGPD.
+                </p>
+                <p><span className="text-foreground font-bold">Declaro estar ciente</span> de que os dados devem ser utilizados exclusivamente para:</p>
+                <ul className="space-y-2 pl-4">
+                  {['Localização da pessoa desaparecida', 'Proteção de seus direitos fundamentais', 'Cooperação com os órgãos competentes'].map(item => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">›</span> {item}
+                    </li>
+                  ))}
+                </ul>
+                <p><span className="text-foreground font-bold">Compromissos específicos:</span></p>
+                <ul className="space-y-2 pl-4">
+                  {[
+                    'Utilizar os dados somente para os fins previstos e legalmente autorizados',
+                    'Garantir a segurança, confidencialidade e integridade das informações',
+                    'Abster-me de divulgar ou compartilhar indevidamente qualquer dado pessoal',
+                    'Comunicar imediatamente qualquer incidente de segurança ou suspeita de violação',
+                    'Respeitar os direitos dos titulares dos dados e de seus representantes legais',
+                    'Cumprir todas as orientações institucionais sobre tratamento de dados pessoal',
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">›</span> {item}
+                    </li>
+                  ))}
+                </ul>
+                <div className="border-l-2 border-primary/50 pl-4 py-2 bg-primary/5 rounded-r-lg">
+                  <p><span className="text-foreground font-bold">Declaro estar ciente</span> de que o descumprimento
+                  poderá ensejar responsabilização administrativa, civil e/ou penal.</p>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-mono text-muted-foreground">
+                  <input type="checkbox" checked={concordouUsuario} onChange={e => setConcordouUsuario(e.target.checked)}
+                    className="accent-[#c9a84c]" />
+                  Li e concordo com os termos
+                </label>
+                <div className="flex gap-3">
+                  <button onClick={handleRecusarTermosUsuario}
+                    className="px-4 py-2 border border-destructive/30 text-destructive/70 hover:text-destructive
+                               hover:border-destructive/60 font-mono text-xs tracking-widest rounded-lg
+                               transition-all uppercase">
+                    Recusar
+                  </button>
+                  <button
+                    onClick={handleAceitarTermosUsuario}
+                    disabled={!concordouUsuario}
+                    className={`px-4 py-2 border font-mono text-xs tracking-widest rounded-lg
+                                transition-all uppercase
+                                ${concordouUsuario
+                                  ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
+                                  : 'border-border text-muted-foreground opacity-40 cursor-not-allowed'
+                                }`}
+                  >
+                    Aceitar e Entrar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Termos — avaliador (cadastro) */}
       <AnimatePresence>
         {mostrarTermos && (
           <motion.div

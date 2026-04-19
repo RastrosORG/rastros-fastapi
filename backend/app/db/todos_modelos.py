@@ -8,3 +8,4 @@ from app.modelos.cronometro import Cronometro
 from app.modelos.mensagem import Mensagem
 from app.modelos.log_exclusao import LogExclusaoDossie
 from app.modelos.log_exclusao_usuario import LogExclusaoUsuario
+from app.modelos.credencial_usuario import CredencialUsuario
