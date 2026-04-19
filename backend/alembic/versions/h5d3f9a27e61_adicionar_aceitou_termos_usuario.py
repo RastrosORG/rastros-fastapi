@@ -1,7 +1,7 @@
 """adicionar aceitou_termos usuario
 
 Revision ID: h5d3f9a27e61
-Revises: e5c2a9b13f71
+Revises: b1d4f7e92c30
 Create Date: 2026-04-19
 
 """
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'h5d3f9a27e61'
-down_revision = 'e5c2a9b13f71'
+down_revision = 'b1d4f7e92c30'
 branch_labels = None
 depends_on = None
 
