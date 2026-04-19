@@ -55,6 +55,7 @@ export default function GerenciarGrupos() {
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [carregandoCredenciais, setCarregandoCredenciais] = useState(false)
   const [gruposSnapshot, setGruposSnapshot] = useState<Grupo[] | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [qtdUsuarios, setQtdUsuarios] = useState('')
@@ -119,6 +120,16 @@ export default function GerenciarGrupos() {
       }))
     } catch (e) {
       console.error('Erro ao carregar credenciais:', e)
+    }
+  }
+
+  async function abrirModalCredenciais() {
+    setModalCredenciais(true)
+    setCarregandoCredenciais(true)
+    try {
+      await carregarCredenciais()
+    } finally {
+      setCarregandoCredenciais(false)
     }
   }
 
@@ -353,7 +364,7 @@ export default function GerenciarGrupos() {
               </button>
             )}
             {grupos.length > 0 && (
-              <button onClick={() => { carregarCredenciais(); setModalCredenciais(true) }}
+              <button onClick={abrirModalCredenciais}
                 className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase">
@@ -573,6 +584,7 @@ export default function GerenciarGrupos() {
           <ModalCredenciais
             credenciais={todasCredenciais}
             ultimaAtualizacao={ultimaAtualizacao}
+            carregandoInicial={carregandoCredenciais}
             onFechar={() => setModalCredenciais(false)}
             onAtualizar={carregarCredenciais}
           />

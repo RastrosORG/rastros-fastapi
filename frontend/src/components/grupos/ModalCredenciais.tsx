@@ -6,12 +6,14 @@ import type { CredencialAPI } from '../../api/gruposApi'
 interface Props {
   credenciais: CredencialAPI[]
   ultimaAtualizacao: string | null
+  carregandoInicial?: boolean
   onFechar: () => void
   onAtualizar: () => Promise<void>
 }
 
-export default function ModalCredenciais({ credenciais, ultimaAtualizacao, onFechar, onAtualizar }: Props) {
+export default function ModalCredenciais({ credenciais, ultimaAtualizacao, carregandoInicial, onFechar, onAtualizar }: Props) {
   const [atualizando, setAtualizando] = useState(false)
+  const carregando = atualizando || !!carregandoInicial
 
   async function handleAtualizar() {
     setAtualizando(true)
@@ -110,12 +112,12 @@ export default function ModalCredenciais({ credenciais, ultimaAtualizacao, onFec
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleAtualizar} disabled={atualizando}
+              <button onClick={handleAtualizar} disabled={carregando}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground
                            hover:text-foreground hover:border-primary/40 font-mono text-xs tracking-widest
                            rounded-lg transition-all uppercase disabled:opacity-50">
-                <RefreshCw size={14} className={atualizando ? 'animate-spin' : ''} />
-                {atualizando ? 'Atualizando...' : 'Atualizar'}
+                <RefreshCw size={14} className={carregando ? 'animate-spin' : ''} />
+                {carregando ? 'Atualizando...' : 'Atualizar'}
               </button>
               <button onClick={() => window.print()}
                 className="flex items-center gap-2 px-3 py-1.5 border border-border text-muted-foreground

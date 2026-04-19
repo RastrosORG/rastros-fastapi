@@ -455,19 +455,24 @@ def reorganizar_membros(movimentos: list[MovimentoMembro], db: Session) -> None:
             if grupo:
                 credencial.grupo_nome = str(grupo.nome_custom or grupo.nome)  # type: ignore
 
-    # Valida estado final antes de confirmar
-    todos_grupos = (
-        db.query(Grupo)
-        .options(joinedload(Grupo.membros))
+    # Garante que todas as mudanças de FK estejam persistidas na sessão antes de validar
+    db.flush()
+
+    # Valida estado final com contagem direta — evita usar coleções ORM que podem estar
+    # desatualizadas na identity map quando o grupo_id foi alterado via FK direto
+    contagens = (
+        db.query(MembroGrupo.grupo_id, func.count(MembroGrupo.id).label('n'))
+        .group_by(MembroGrupo.grupo_id)
         .all()
     )
-    for grupo in todos_grupos:
-        n = len(grupo.membros)
+    for grupo_id_val, n in contagens:
         if n > 0 and (n < 3 or n > 4):
             db.rollback()
+            grupo = db.get(Grupo, grupo_id_val)
+            nome = str(grupo.nome_custom or grupo.nome) if grupo else str(grupo_id_val)
             raise HTTPException(
                 status_code=400,
-                detail=f"Grupo '{grupo.nome_custom or grupo.nome}' ficaria com {n} membros"
+                detail=f"Grupo '{nome}' ficaria com {n} membros"
             )
 
     db.commit()
@@ -479,7 +484,7 @@ def listar_credenciais(db: Session) -> ListarCredenciaisOutput:
         .order_by(CredencialUsuario.grupo_id, CredencialUsuario.login)
         .all()
     )
-    ultima = max((r.criado_em for r in rows), default=None)
+    ultima = max((r.criado_em for r in rows), default=None) if rows else None  # type: ignore[type-var]
     return ListarCredenciaisOutput(
         credenciais=[
             CredencialOutput(
