@@ -86,6 +86,15 @@ class AdicionarMembroOutput(BaseModel):
     credencial: UsuarioCredencial
 
 
+class MovimentoMembro(BaseModel):
+    usuario_id: int
+    grupo_id: int
+
+
+class ReorganizarInput(BaseModel):
+    movimentos: list[MovimentoMembro]
+
+
 class CredencialOutput(BaseModel):
     id: int
     login: str

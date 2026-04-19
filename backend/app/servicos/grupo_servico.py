@@ -10,7 +10,7 @@ from app.modelos.resposta import Resposta, ArquivoResposta
 from app.modelos.log_exclusao_usuario import LogExclusaoUsuario
 from app.modelos.credencial_usuario import CredencialUsuario
 from app.core.seguranca import hash_senha
-from app.schemas.grupo import GerarUsuariosOutput, UsuarioCredencial, AdicionarMembroOutput, GrupoOutput, AtualizarNomeGrupoInput, ListarCredenciaisOutput, CredencialOutput
+from app.schemas.grupo import GerarUsuariosOutput, UsuarioCredencial, AdicionarMembroOutput, GrupoOutput, AtualizarNomeGrupoInput, ListarCredenciaisOutput, CredencialOutput, MovimentoMembro
 from app.servicos import storage_servico
 
 # Controle de geração simultânea — em produção usar Redis
@@ -432,6 +432,44 @@ def excluir_grupo_permanente(
     ).delete(synchronize_session=False)
 
     db.delete(grupo)
+    db.commit()
+
+
+def reorganizar_membros(movimentos: list[MovimentoMembro], db: Session) -> None:
+    for mov in movimentos:
+        membro = db.query(MembroGrupo).filter(
+            MembroGrupo.usuario_id == mov.usuario_id
+        ).first()
+        if not membro:
+            raise HTTPException(status_code=404, detail=f"Membro {mov.usuario_id} não encontrado")
+
+        membro.grupo_id = mov.grupo_id  # type: ignore
+
+        # Atualiza grupo na tabela de credenciais
+        credencial = db.query(CredencialUsuario).filter(
+            CredencialUsuario.usuario_id == mov.usuario_id
+        ).first()
+        if credencial:
+            grupo = db.get(Grupo, mov.grupo_id)
+            credencial.grupo_id = mov.grupo_id  # type: ignore
+            if grupo:
+                credencial.grupo_nome = str(grupo.nome_custom or grupo.nome)  # type: ignore
+
+    # Valida estado final antes de confirmar
+    todos_grupos = (
+        db.query(Grupo)
+        .options(joinedload(Grupo.membros))
+        .all()
+    )
+    for grupo in todos_grupos:
+        n = len(grupo.membros)
+        if n > 0 and (n < 3 or n > 4):
+            db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Grupo '{grupo.nome_custom or grupo.nome}' ficaria com {n} membros"
+            )
+
     db.commit()
 
 

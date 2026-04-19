@@ -53,6 +53,15 @@ export async function moverMembro(usuarioId: number, grupoId: number): Promise<G
   return res.data
 }
 
+export interface MovimentoMembro {
+  usuario_id: number
+  grupo_id: number
+}
+
+export async function reorganizarMembros(movimentos: MovimentoMembro[]): Promise<void> {
+  await api.post('/grupos/reorganizar', { movimentos })
+}
+
 export async function adicionarMembro(): Promise<CredencialAPI> {
   const res = await api.post<{ credencial: CredencialAPI }>('/grupos/adicionar-membro')
   return res.data.credencial

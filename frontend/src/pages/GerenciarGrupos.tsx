@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Users, Plus, Key, Lock, Unlock, CheckCircle,
+  Users, Plus, Key, Lock, Unlock, CheckCircle, X,
   AlertTriangle, RefreshCw, UserPlus, Search, ClipboardList
 } from 'lucide-react'
 import {
   DndContext, PointerSensor, useSensor, useSensors, DragOverlay, closestCenter
 } from '@dnd-kit/core'
-import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
+import type { DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 
 import GrupoCard, { type Grupo } from '../components/grupos/GrupoCard'
 import type { Usuario } from '../components/grupos/MembroCard'
@@ -21,8 +21,8 @@ import ModalConfirmarExclusaoGrupo from '../components/grupos/ModalConfirmarExcl
 import ModalLogExclusoesGrupos from '../components/grupos/ModalLogExclusoesGrupos'
 import {
   listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
-  moverMembro, adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
-  listarCredenciais,
+  adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
+  listarCredenciais, reorganizarMembros,
 } from '../api/gruposApi'
 import type { CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
 import { useAuthStore } from '../store/authStore'
@@ -54,8 +54,9 @@ export default function GerenciarGrupos() {
   const [ultimaGeracao] = useState<Date | null>(null)
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [gruposSnapshot, setGruposSnapshot] = useState<Grupo[] | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [grupoOrigemId, setGrupoOrigemId] = useState<string | null>(null)
   const [qtdUsuarios, setQtdUsuarios] = useState('')
   const [filtro, setFiltro] = useState<FiltroView>('todos')
   const [busca, setBusca] = useState('')
@@ -180,23 +181,55 @@ export default function GerenciarGrupos() {
     if (lockEdicao && lockEdicao.avaliadorId !== avaliadorId) {
       mostrarToast(`${lockEdicao.avaliadorNome} está editando. Aguarde.`, 'erro'); return
     }
-    // TODO backend: registrar lock via WebSocket
+    setGruposSnapshot(grupos.map(g => ({ ...g, membros: [...g.membros] })))
     setLockEdicao({ avaliadorId, avaliadorNome })
     setEditando(true)
   }
 
-  function desativarEdicao() {
-    // TODO backend: liberar lock via WebSocket
+  function cancelarEdicao() {
+    if (gruposSnapshot) setGrupos(gruposSnapshot)
+    setGruposSnapshot(null)
+    setLockEdicao(null)
+    setEditando(false)
+  }
+
+  async function concluirEdicao() {
+    if (!gruposSnapshot) { setEditando(false); return }
+
+    // Detecta membros que trocaram de grupo
+    const movimentos: { usuario_id: number; grupo_id: number }[] = []
+    for (const grupo of grupos) {
+      for (const membro of grupo.membros) {
+        const grupoAntes = gruposSnapshot.find(g => g.membros.some(m => m.id === membro.id))
+        if (grupoAntes && grupoAntes.id !== grupo.id) {
+          movimentos.push({ usuario_id: parseInt(membro.id), grupo_id: parseInt(grupo.id) })
+        }
+      }
+    }
+
+    if (movimentos.length > 0) {
+      setSalvando(true)
+      try {
+        await reorganizarMembros(movimentos)
+        await Promise.all([carregarGrupos(), carregarCredenciais()])
+        mostrarToast(`${movimentos.length} membro(s) realocado(s) com sucesso!`, 'ok')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
+        mostrarToast(e?.response?.data?.detail ?? 'Erro ao salvar mudanças.', 'erro')
+        await carregarGrupos()
+        setSalvando(false)
+        return
+      }
+      setSalvando(false)
+    }
+
+    setGruposSnapshot(null)
     setLockEdicao(null)
     setEditando(false)
   }
 
   // ── Drag and drop ─────────────────────────────────────────────
-  function onDragStart(e: DragStartEvent) {
-    setActiveId(e.active.id as string)
-    const g = grupos.find(grp => grp.membros.some(m => m.id === e.active.id))
-    setGrupoOrigemId(g?.id ?? null)
-  }
+  function onDragStart(e: DragStartEvent) { setActiveId(e.active.id as string) }
 
   const onDragOver = useCallback((e: DragOverEvent) => {
     const { active, over } = e
@@ -214,42 +247,7 @@ export default function GerenciarGrupos() {
     })
   }, [])
 
-  async function onDragEnd(e: DragEndEvent) {
-    setActiveId(null)
-
-    if (!e.over || !grupoOrigemId) {
-      setGrupoOrigemId(null)
-      return
-    }
-
-    const { active } = e
-    // Após onDragOver, o membro já está no grupo destino no estado local
-    const grupoDestino = grupos.find(g => g.membros.some(m => m.id === active.id))
-
-    if (!grupoDestino || grupoOrigemId === grupoDestino.id) {
-      setGrupoOrigemId(null)
-      return
-    }
-
-    const invalidos = grupos.filter(g => g.membros.length < 3 || g.membros.length > 4)
-    if (invalidos.length > 0) {
-      mostrarToast('Ajuste os grupos para que todos tenham entre 3 e 4 membros.', 'erro')
-      await carregarGrupos()
-      setGrupoOrigemId(null)
-      return
-    }
-
-    try {
-      await moverMembro(parseInt(active.id as string), parseInt(grupoDestino.id))
-      await carregarCredenciais()
-      mostrarToast('Membro movido!', 'ok')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      mostrarToast(e?.response?.data?.detail ?? 'Erro ao mover membro.', 'erro')
-      await carregarGrupos()
-    }
-    setGrupoOrigemId(null)
-  }
+  function onDragEnd() { setActiveId(null) }
 
   // ── Exclusão de usuário ───────────────────────────────────────
   async function confirmarExcluirUsuario(motivo: string) {
@@ -449,21 +447,38 @@ export default function GerenciarGrupos() {
               )}
             </div>
             {(!lockEdicao || lockEdicao.avaliadorId === avaliadorId) && (
-              <button
-                onClick={editando ? desativarEdicao : ativarEdicao}
-                disabled={editando && grupos.some(g => g.membros.length < 3 || g.membros.length > 4)}
-                title={editando && grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
-                  ? 'Todos os grupos precisam ter entre 3 e 4 membros' : undefined}
-                className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
-                           tracking-widest rounded-lg transition-all uppercase
-                           ${editando
-                             ? grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
-                               ? 'border-destructive/30 bg-destructive/5 text-destructive/40 cursor-not-allowed'
-                               : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
-                             : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                           }`}>
-                {editando ? <><CheckCircle size={13} /> Concluir</> : <><Unlock size={13} /> Editar</>}
-              </button>
+              editando ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={cancelarEdicao} disabled={salvando}
+                    className="flex items-center gap-2 px-4 py-1.5 border border-border
+                               text-muted-foreground hover:text-foreground hover:border-primary/40
+                               font-mono text-xs tracking-widest rounded-lg transition-all uppercase
+                               disabled:opacity-40">
+                    <X size={13} /> Cancelar
+                  </button>
+                  <button
+                    onClick={concluirEdicao}
+                    disabled={salvando || grupos.some(g => g.membros.length < 3 || g.membros.length > 4)}
+                    title={grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
+                      ? 'Todos os grupos precisam ter entre 3 e 4 membros' : undefined}
+                    className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
+                               tracking-widest rounded-lg transition-all uppercase
+                               ${salvando || grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
+                                 ? 'border-destructive/30 bg-destructive/5 text-destructive/40 cursor-not-allowed'
+                                 : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                               }`}>
+                    <CheckCircle size={13} />
+                    {salvando ? 'Salvando...' : 'Concluir'}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={ativarEdicao}
+                  className="flex items-center gap-2 px-4 py-1.5 border border-border
+                             text-muted-foreground hover:border-primary/40 hover:text-foreground
+                             font-mono text-xs tracking-widest rounded-lg transition-all uppercase">
+                  <Unlock size={13} /> Editar
+                </button>
+              )
             )}
           </motion.div>
         )}

@@ -5,6 +5,7 @@ from app.schemas.grupo import (
     GrupoOutput, GerarUsuariosInput, GerarUsuariosOutput,
     AdicionarMembroOutput, AtualizarNomeGrupoInput,
     ExcluirInput, LogExclusaoUsuarioOutput, ListarCredenciaisOutput,
+    ReorganizarInput,
 )
 from app.servicos import grupo_servico
 
@@ -41,6 +42,15 @@ def listar_todos(
     return grupo_servico.listar_grupos(db)
 
 # Literal antes de parametrizado — evita que FastAPI trate strings como grupo_id
+@router.post("/reorganizar", status_code=204)
+def reorganizar(
+    dados: ReorganizarInput,
+    db: Session = Depends(get_db),
+    _=Depends(get_avaliador)
+):
+    grupo_servico.reorganizar_membros(dados.movimentos, db)
+
+
 @router.get("/credenciais", response_model=ListarCredenciaisOutput)
 def listar_credenciais(
     db: Session = Depends(get_db),
