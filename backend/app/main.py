@@ -15,8 +15,10 @@ _migracao_concluida = False
 
 async def _rodar_migrations():
     global _migracao_concluida
+    print("[migrations] iniciando alembic upgrade head...", flush=True)
     proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "alembic", "upgrade", "head")
-    await proc.wait()
+    codigo = await proc.wait()
+    print(f"[migrations] concluído com código {codigo}", flush=True)
     _migracao_concluida = True
 
 
@@ -33,7 +35,7 @@ app = FastAPI(title="Rastros API", version="1.0.0", lifespan=lifespan)
 async def aguardar_migracao(request: Request, call_next):
     # Segura requisições por até 10s enquanto a migration ainda está rodando
     if not _migracao_concluida:
-        for _ in range(100):
+        for _ in range(1200):
             if _migracao_concluida:
                 break
             await asyncio.sleep(0.1)
