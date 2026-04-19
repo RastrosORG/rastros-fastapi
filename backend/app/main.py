@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import sys
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import configuracoes
 
@@ -10,20 +10,35 @@ import app.db.todos_modelos  # noqa: F401
 
 from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuacao, cronometro, chat
 
+_migracao_concluida = False
+
 
 async def _rodar_migrations():
+    global _migracao_concluida
     proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "alembic", "upgrade", "head")
     await proc.wait()
+    _migracao_concluida = True
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Migrations em background — uvicorn sobe e responde imediatamente
+    # Migrations em background — porta sobe imediatamente (Render não dá timeout)
     asyncio.create_task(_rodar_migrations())
     yield
 
 
 app = FastAPI(title="Rastros API", version="1.0.0", lifespan=lifespan)
+
+@app.middleware("http")
+async def aguardar_migracao(request: Request, call_next):
+    # Segura requisições por até 10s enquanto a migration ainda está rodando
+    if not _migracao_concluida:
+        for _ in range(100):
+            if _migracao_concluida:
+                break
+            await asyncio.sleep(0.1)
+    return await call_next(request)
+
 
 origins = [o.strip() for o in configuracoes.ALLOWED_ORIGINS.split(",") if o.strip()]
 
