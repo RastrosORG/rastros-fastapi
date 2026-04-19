@@ -99,6 +99,20 @@ export default function Pontuacao() {
       })
       .catch(() => setErro(true))
       .finally(() => setCarregando(false))
+
+    const intervalo = setInterval(() => {
+      listarRanking()
+        .then(dados => {
+          setRanking(dados.ranking)
+          setAtividadeRaw(dados.atividade)
+          setEvolucaoRaw(dados.evolucao)
+          // Mantém apenas seleções cujo nome ainda existe (cobre renomeações)
+          const novosNomes = new Set(dados.ranking.map(g => g.nome))
+          setGruposSelecionados(prev => prev.filter(n => novosNomes.has(n)))
+        })
+        .catch(() => { /* silencia erros de rede no poll silencioso */ })
+    }, 20000)
+    return () => clearInterval(intervalo)
   }, [])
 
   function toggleGrupo(nome: string) {

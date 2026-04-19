@@ -3,6 +3,7 @@ import { MessageSquare, X, Send, Bell, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { meuGrupo } from '../../api/gruposApi'
 import type { GrupoAPI } from '../../api/gruposApi'
+import type { MensagemChat } from '../../api/chatApi'
 import { useChatGrupo } from '../../hooks/useChat'
 import { useAuthStore } from '../../store/authStore'
 import { CORES_CHAT } from '../../lib/coresMembros'
@@ -20,15 +21,22 @@ export default function ChatWidget() {
   const [input, setInput] = useState('')
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H })
 
+  const [mensagensLocais, setMensagensLocais] = useState<MensagemChat[]>([])
+
   const resizing = useRef(false)
   const resizeStart = useRef({ x: 0, y: 0, w: DEFAULT_W, h: DEFAULT_H })
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Evita envio duplo por clique rápido antes do re-render limpar o input
+  const enviandoRef = useRef(false)
+  // Guarda snapshot dos membros do turno anterior para detectar entradas/saídas
+  const grupoAnteriorRef = useRef<GrupoAPI | null>(null)
+  const localIdRef = useRef(-1)
 
   const usuario = useAuthStore(s => s.usuario)
   const grupoId = grupo?.id ?? null
 
-  const { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar } = useChatGrupo(grupoId)
+  const { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar, trocarGrupoId } = useChatGrupo(grupoId)
 
   // Busca o grupo do usuário na montagem e re-verifica a cada 20s
   // para detectar mudanças de nome, membros ou troca de grupo
@@ -55,9 +63,61 @@ export default function ChatWidget() {
     return () => clearInterval(intervalo)
   }, [])
 
+  // Recebeu evento trocar_grupo via WS — força atualização imediata sem esperar o poll de 20s
+  useEffect(() => {
+    if (trocarGrupoId === null) return
+    meuGrupo().then(g => setGrupo(g)).catch(() => {})
+  }, [trocarGrupoId])
+
+  // Detecta troca de grupo (limpa mensagens locais) e mudanças de membros (injeta avisos)
+  useEffect(() => {
+    const anterior = grupoAnteriorRef.current
+
+    if (!grupo) {
+      grupoAnteriorRef.current = null
+      setTimeout(() => setMensagensLocais([]), 0)
+      return
+    }
+
+    if (!anterior || anterior.id !== grupo.id) {
+      // Trocou de grupo — limpa mensagens locais do grupo anterior
+      grupoAnteriorRef.current = grupo
+      setTimeout(() => setMensagensLocais([]), 0)
+      return
+    }
+
+    // Mesmo grupo — verifica se membros mudaram
+    const idsAntes = new Set(anterior.membros.map(m => m.usuario.id))
+    const idsAgora = new Set(grupo.membros.map(m => m.usuario.id))
+    const novas: MensagemChat[] = []
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+    for (const m of anterior.membros) {
+      if (!idsAgora.has(m.usuario.id)) {
+        novas.push({
+          id: localIdRef.current--,
+          texto: `${m.usuario.nome_custom || m.usuario.login} saiu do grupo`,
+          autor: '', hora, tipo: 'sistema', usuario_id: null,
+        })
+      }
+    }
+    for (const m of grupo.membros) {
+      if (!idsAntes.has(m.usuario.id)) {
+        novas.push({
+          id: localIdRef.current--,
+          texto: `${m.usuario.nome_custom || m.usuario.login} entrou no grupo`,
+          autor: '', hora, tipo: 'sistema', usuario_id: null,
+        })
+      }
+    }
+
+    grupoAnteriorRef.current = grupo
+    if (novas.length > 0) setTimeout(() => setMensagensLocais(prev => [...prev, ...novas]), 0)
+  }, [grupo])
+
   useEffect(() => {
     if (aberto) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensagens, aberto])
+  }, [mensagens, mensagensLocais, aberto])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -101,10 +161,13 @@ export default function ChatWidget() {
 
   // ── Chat ─────────────────────────────────────────────────────────
   function handleEnviar() {
-    if (!input.trim()) return
-    enviar(input.trim())
+    const texto = input.trim()
+    if (!texto || enviandoRef.current) return
+    enviandoRef.current = true
+    enviar(texto)
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    requestAnimationFrame(() => { enviandoRef.current = false })
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -168,7 +231,7 @@ export default function ChatWidget() {
                     fill={chamouAvaliador && !avaliadorPresente ? 'currentColor' : 'none'}
                     className={chamouAvaliador && !avaliadorPresente ? 'animate-pulse' : ''}
                   />
-                  {chamouAvaliador && !avaliadorPresente ? 'Chamado' : 'Chamar'}
+                  {chamouAvaliador && !avaliadorPresente ? 'Chamado' : 'Chamar avaliador'}
                 </button>
                 <button
                   onClick={() => setAberto(false)}
@@ -188,7 +251,7 @@ export default function ChatWidget() {
                   <div className="flex-1 h-px bg-primary/20" />
                 </div>
               )}
-              {mensagens.map((m) => {
+              {[...mensagens, ...mensagensLocais].map((m) => {
                 const isAvaliador = m.tipo === 'avaliador'
                 const isSistema = m.tipo === 'sistema'
                 const proprio = m.tipo === 'grupo' && m.usuario_id === usuario?.id

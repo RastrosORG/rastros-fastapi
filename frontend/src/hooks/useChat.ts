@@ -63,6 +63,7 @@ export function useChatGrupo(grupoId: number | null) {
   const [mensagens, setMensagens] = useState<MensagemChat[]>([])
   const [avaliadorPresente, setAvaliadorPresente] = useState(false)
   const [chamouAvaliador, setChamouAvaliador] = useState(false)
+  const [trocarGrupoId, setTrocarGrupoId] = useState<number | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
 
   const destroyedRef = useRef(false)
@@ -100,6 +101,8 @@ export function useChatGrupo(grupoId: number | null) {
         setAvaliadorPresente(false)
         setMensagens(prev => adicionarSemDuplicar(prev, msg.dados))
         tocarAlertaSaida()
+      } else if (msg.evento === 'trocar_grupo') {
+        setTrocarGrupoId(msg.grupo_id)
       }
       // 'ping' ignorado intencionalmente
     }
@@ -142,7 +145,7 @@ export function useChatGrupo(grupoId: number | null) {
     setChamouAvaliador(true)
   }, [])
 
-  return { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar }
+  return { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar, trocarGrupoId }
 }
 
 // ── Hook para o avaliador monitorar um grupo ─────────────────────────

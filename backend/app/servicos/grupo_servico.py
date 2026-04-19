@@ -16,6 +16,45 @@ from app.servicos import storage_servico
 # Controle de geração simultânea — em produção usar Redis
 _lock_geracao: dict = {}
 
+# Lock de edição de grupos compartilhado entre avaliadores
+_lock_edicao: dict = {}
+
+
+def adquirir_lock_edicao(avaliador_id: int, avaliador_nome: str) -> None:
+    global _lock_edicao
+    agora = datetime.utcnow()
+    if _lock_edicao.get("ativo") and _lock_edicao.get("expira", agora) > agora:
+        if _lock_edicao.get("avaliador_id") != avaliador_id:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "avaliador_id": _lock_edicao["avaliador_id"],
+                    "avaliador_nome": _lock_edicao["avaliador_nome"],
+                }
+            )
+    _lock_edicao = {
+        "ativo": True,
+        "avaliador_id": avaliador_id,
+        "avaliador_nome": avaliador_nome,
+        "expira": agora + timedelta(minutes=30),
+    }
+
+
+def liberar_lock_edicao(avaliador_id: int) -> None:
+    global _lock_edicao
+    if _lock_edicao.get("avaliador_id") == avaliador_id:
+        _lock_edicao = {}
+
+
+def status_lock_edicao() -> dict | None:
+    agora = datetime.utcnow()
+    if _lock_edicao.get("ativo") and _lock_edicao.get("expira", agora) > agora:
+        return {
+            "avaliador_id": _lock_edicao["avaliador_id"],
+            "avaliador_nome": _lock_edicao["avaliador_nome"],
+        }
+    return None
+
 def _opcoes_grupo():
     """Eager load de membros→usuário e avaliador — evita N+1 em toda listagem."""
     return [
@@ -285,8 +324,10 @@ def adicionar_membro(db: Session) -> AdicionarMembroOutput:
         db.add(grupo_destino)
         db.flush()
 
+        ids_movidos: list[int] = []
         for g in grupos_4[:2]:
             membro_mover = g.membros[-1]
+            ids_movidos.append(int(membro_mover.usuario_id))  # type: ignore
             membro_mover.grupo_id = int(grupo_destino.id)  # type: ignore
             # Atualiza credencial do membro movido para o novo grupo
             cred_mover = db.query(CredencialUsuario).filter(
@@ -294,7 +335,9 @@ def adicionar_membro(db: Session) -> AdicionarMembroOutput:
             ).first()
             if cred_mover:
                 cred_mover.grupo_id = int(grupo_destino.id)  # type: ignore
-                cred_mover.grupo_nome = str(grupo_destino.nome)
+                cred_mover.grupo_nome = str(grupo_destino.nome)  # type: ignore
+    else:
+        ids_movidos = []
 
     login = f"user{str(_numero_inicial_login(db)).zfill(2)}"
     senha = _gerar_senha()
@@ -330,7 +373,8 @@ def adicionar_membro(db: Session) -> AdicionarMembroOutput:
             senha=senha,
             grupo_id=int(grupo_destino.id),  # type: ignore
             grupo_nome=str(grupo_destino.nome)
-        )
+        ),
+        membros_movidos=ids_movidos,
     )
 
 

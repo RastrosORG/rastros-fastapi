@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.dependencias import get_db, get_avaliador, get_usuario_atual
+from app.websockets.manager import manager
 from app.schemas.grupo import (
     GrupoOutput, GerarUsuariosInput, GerarUsuariosOutput,
     AdicionarMembroOutput, AtualizarNomeGrupoInput,
     ExcluirInput, LogExclusaoUsuarioOutput, ListarCredenciaisOutput,
-    ReorganizarInput,
+    ReorganizarInput, LockEdicaoStatus,
 )
 from app.servicos import grupo_servico
 
@@ -42,13 +43,40 @@ def listar_todos(
     return grupo_servico.listar_grupos(db)
 
 # Literal antes de parametrizado — evita que FastAPI trate strings como grupo_id
+@router.post("/lock", status_code=204)
+def adquirir_lock(
+    usuario_atual=Depends(get_avaliador)
+):
+    grupo_servico.adquirir_lock_edicao(int(usuario_atual.id), str(usuario_atual.login))
+
+
+@router.delete("/lock", status_code=204)
+def liberar_lock(
+    usuario_atual=Depends(get_avaliador)
+):
+    grupo_servico.liberar_lock_edicao(int(usuario_atual.id))
+
+
+@router.get("/lock", response_model=LockEdicaoStatus)
+def status_lock():
+    lock = grupo_servico.status_lock_edicao()
+    if lock:
+        return LockEdicaoStatus(bloqueado=True, avaliador_id=lock["avaliador_id"], avaliador_nome=lock["avaliador_nome"])
+    return LockEdicaoStatus(bloqueado=False)
+
+
 @router.post("/reorganizar", status_code=204)
-def reorganizar(
+async def reorganizar(
     dados: ReorganizarInput,
     db: Session = Depends(get_db),
     _=Depends(get_avaliador)
 ):
     grupo_servico.reorganizar_membros(dados.movimentos, db)
+    for mov in dados.movimentos:
+        await manager.notificar_usuario(mov.usuario_id, {
+            "evento": "trocar_grupo",
+            "grupo_id": mov.grupo_id,
+        })
 
 
 @router.get("/credenciais", response_model=ListarCredenciaisOutput)
@@ -84,13 +112,18 @@ def transferir(
     return grupo_servico.transferir_grupo(grupo_id, avaliador_id, db)
 
 @router.patch("/membro/{usuario_id}/mover/{grupo_id}", response_model=GrupoOutput)
-def mover_membro(
+async def mover_membro(
     usuario_id: int,
     grupo_id: int,
     db: Session = Depends(get_db),
     _=Depends(get_avaliador)
 ):
-    return grupo_servico.mover_membro(usuario_id, grupo_id, db)
+    resultado = grupo_servico.mover_membro(usuario_id, grupo_id, db)
+    await manager.notificar_usuario(usuario_id, {
+        "evento": "trocar_grupo",
+        "grupo_id": grupo_id,
+    })
+    return resultado
 
 @router.post("/gerar", response_model=GerarUsuariosOutput)
 def gerar_usuarios(
@@ -105,11 +138,17 @@ def gerar_usuarios(
     )
 
 @router.post("/adicionar-membro", response_model=AdicionarMembroOutput)
-def adicionar_membro(
+async def adicionar_membro(
     db: Session = Depends(get_db),
     _=Depends(get_avaliador)
 ):
-    return grupo_servico.adicionar_membro(db)
+    resultado = grupo_servico.adicionar_membro(db)
+    for uid in resultado.membros_movidos:
+        await manager.notificar_usuario(uid, {
+            "evento": "trocar_grupo",
+            "grupo_id": resultado.credencial.grupo_id,
+        })
+    return resultado
 
 # /usuario/{id} antes de /{grupo_id} para evitar ambiguidade no DELETE
 @router.delete("/usuario/{usuario_id}", status_code=204)

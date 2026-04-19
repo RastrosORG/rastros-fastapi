@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Plus, Key, Lock, Unlock, CheckCircle, X,
@@ -22,7 +22,7 @@ import ModalLogExclusoesGrupos from '../components/grupos/ModalLogExclusoesGrupo
 import {
   listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
   adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
-  listarCredenciais, reorganizarMembros,
+  listarCredenciais, reorganizarMembros, adquirirLock, liberarLock, statusLock,
 } from '../api/gruposApi'
 import type { CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
 import { useAuthStore } from '../store/authStore'
@@ -81,6 +81,25 @@ export default function GerenciarGrupos() {
   const [logs, setLogs] = useState<LogExclusaoUsuarioAPI[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const editandoRef = useRef(false)
+  useEffect(() => { editandoRef.current = editando }, [editando])
+
+  // Polling do lock compartilhado — mantém todos os avaliadores sincronizados
+  useEffect(() => {
+    async function verificarLock() {
+      try {
+        const status = await statusLock()
+        if (status.bloqueado && status.avaliador_id !== null) {
+          setLockEdicao({ avaliadorId: status.avaliador_id.toString(), avaliadorNome: status.avaliador_nome ?? '' })
+        } else if (!editandoRef.current) {
+          setLockEdicao(null)
+        }
+      } catch { /* ignora erros de rede */ }
+    }
+    verificarLock()
+    const intervalo = setInterval(verificarLock, 8000)
+    return () => clearInterval(intervalo)
+  }, [])
 
   useEffect(() => {
     carregarGrupos()
@@ -188,24 +207,35 @@ export default function GerenciarGrupos() {
   }
 
   // ── Lock de edição ────────────────────────────────────────────
-  function ativarEdicao() {
-    if (lockEdicao && lockEdicao.avaliadorId !== avaliadorId) {
-      mostrarToast(`${lockEdicao.avaliadorNome} está editando. Aguarde.`, 'erro'); return
+  async function ativarEdicao() {
+    try {
+      await adquirirLock()
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail
+      const nome = detail?.avaliador_nome ?? 'Outro avaliador'
+      mostrarToast(`Aguarde. ${nome} está editando os grupos no momento.`, 'erro')
+      return
     }
     setGruposSnapshot(grupos.map(g => ({ ...g, membros: [...g.membros] })))
     setLockEdicao({ avaliadorId, avaliadorNome })
     setEditando(true)
   }
 
-  function cancelarEdicao() {
+  async function cancelarEdicao() {
     if (gruposSnapshot) setGrupos(gruposSnapshot)
     setGruposSnapshot(null)
     setLockEdicao(null)
     setEditando(false)
+    try { await liberarLock() } catch { /* ignora */ }
   }
 
   async function concluirEdicao() {
-    if (!gruposSnapshot) { setEditando(false); return }
+    if (!gruposSnapshot) {
+      setEditando(false)
+      setLockEdicao(null)
+      try { await liberarLock() } catch { /* ignora */ }
+      return
+    }
 
     // Detecta membros que trocaram de grupo
     const movimentos: { usuario_id: number; grupo_id: number }[] = []
@@ -237,6 +267,7 @@ export default function GerenciarGrupos() {
     setGruposSnapshot(null)
     setLockEdicao(null)
     setEditando(false)
+    try { await liberarLock() } catch { /* ignora */ }
   }
 
   // ── Drag and drop ─────────────────────────────────────────────

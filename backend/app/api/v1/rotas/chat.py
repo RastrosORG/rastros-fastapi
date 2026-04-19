@@ -77,6 +77,10 @@ async def ws_grupo(
 
         await manager.connect_grupo(websocket, grupo_id)
 
+        # Registra socket do usuário para notificações diretas (ex: troca de grupo)
+        if not usuario.is_avaliador:
+            manager.register_usuario(int(usuario.id), websocket)
+
         grupo = await asyncio.to_thread(db.get, Grupo, grupo_id)
 
         # Usuários recebem histórico completo; avaliador começa do zero
@@ -117,6 +121,9 @@ async def ws_grupo(
                 if acao == "chamar" and not usuario.is_avaliador:
                     await asyncio.to_thread(chat_servico.marcar_chamada, grupo_id, db)
                     if grupo:
+                        # Recarrega o grupo para pegar avaliador_id atualizado
+                        # caso o grupo tenha sido transferido após esta conexão
+                        await asyncio.to_thread(db.refresh, grupo)
                         await manager.notificar_avaliador(int(grupo.avaliador_id), {
                             "evento": "chamada",
                             "grupo_id": grupo_id,
@@ -168,6 +175,8 @@ async def ws_grupo(
         pass
     finally:
         manager.disconnect_grupo(websocket, grupo_id)
+        if usuario and not usuario.is_avaliador:
+            manager.unregister_usuario(int(usuario.id), websocket)
 
         # Se o avaliador desconectou sem sair explicitamente — limpa o estado
         if usuario and usuario.is_avaliador and avaliador_ativo:

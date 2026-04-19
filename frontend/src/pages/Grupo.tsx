@@ -59,6 +59,8 @@ export default function Grupo() {
   useEffect(() => {
     if (usuario?.is_avaliador) return
     carregarGrupo()
+    const intervalo = setInterval(() => atualizarGrupoSilencioso(), 20000)
+    return () => clearInterval(intervalo)
   }, [usuario])
 
   // Busca estatísticas reais do ranking após carregar o grupo
@@ -86,6 +88,14 @@ export default function Grupo() {
     } finally {
       setCarregando(false)
     }
+  }
+
+  // Atualiza o grupo em background sem acionar o spinner de carregamento
+  async function atualizarGrupoSilencioso() {
+    try {
+      const dados = await meuGrupo()
+      setGrupo(dados)
+    } catch { /* silencia erros de rede no poll silencioso */ }
   }
 
   function mostrarToast(msg: string) {

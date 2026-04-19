@@ -73,27 +73,39 @@ export default function AvaliarRespostas() {
 
   // ── Carrega grupos na montagem ────────────────────────────────
   useEffect(() => {
+    function mapearGrupos(dados: Awaited<ReturnType<typeof listarGruposDoAvaliador>>) {
+      return dados.map((g) => ({
+        id: String(g.grupo_id),
+        nome: g.grupo_nome,
+        pendentes: g.pendentes,
+        total: g.total,
+      }))
+    }
+
     async function carregar() {
       try {
         const dados = await listarGruposDoAvaliador()
-        setGrupos(
-          dados.map((g) => ({
-            id: String(g.grupo_id),
-            nome: g.grupo_nome,
-            pendentes: g.pendentes,
-            total: g.total,
-          }))
-        )
+        setGrupos(mapearGrupos(dados))
       } finally {
         setCarregandoGrupos(false)
       }
     }
+
+    async function atualizarSilencioso() {
+      try {
+        const dados = await listarGruposDoAvaliador()
+        setGrupos(mapearGrupos(dados))
+      } catch { /* silencia erros de rede no poll silencioso */ }
+    }
+
     carregar()
+    const intervalo = setInterval(atualizarSilencioso, 20000)
+    return () => clearInterval(intervalo)
   }, [])
 
   // ── Carrega respostas ao selecionar grupo ─────────────────────
   const carregarRespostasGrupo = useCallback(async (grupoId: string) => {
-    if (respostas[grupoId]) return // já carregado
+    if (respostas[grupoId]) return // já carregado — o poll cuida das atualizações
     setCarregandoRespostas(true)
     try {
       const dados = await listarRespostasGrupoAPI(parseInt(grupoId))
@@ -102,6 +114,18 @@ export default function AvaliarRespostas() {
       setCarregandoRespostas(false)
     }
   }, [respostas])
+
+  // ── Poll do grupo selecionado — detecta novas submissões ──────
+  useEffect(() => {
+    if (!grupoSelecionado) return
+    const intervalo = setInterval(async () => {
+      try {
+        const dados = await listarRespostasGrupoAPI(parseInt(grupoSelecionado))
+        setRespostas((prev) => ({ ...prev, [grupoSelecionado]: dados.map(mapRespostaAPI) }))
+      } catch { /* silencia erros de rede no poll silencioso */ }
+    }, 20000)
+    return () => clearInterval(intervalo)
+  }, [grupoSelecionado])
 
   function selecionarGrupo(id: string) {
     setGrupoSelecionado(id)

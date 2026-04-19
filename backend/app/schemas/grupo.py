@@ -84,6 +84,7 @@ class GerarUsuariosOutput(BaseModel):
 
 class AdicionarMembroOutput(BaseModel):
     credencial: UsuarioCredencial
+    membros_movidos: list[int] = []
 
 
 class MovimentoMembro(BaseModel):
@@ -109,3 +110,9 @@ class CredencialOutput(BaseModel):
 class ListarCredenciaisOutput(BaseModel):
     credenciais: list[CredencialOutput]
     ultima_atualizacao: Optional[datetime] = None
+
+
+class LockEdicaoStatus(BaseModel):
+    bloqueado: bool
+    avaliador_id: Optional[int] = None
+    avaliador_nome: Optional[str] = None

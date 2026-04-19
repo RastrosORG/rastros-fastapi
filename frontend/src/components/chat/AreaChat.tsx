@@ -9,6 +9,7 @@ export interface Mensagem {
   autor: string
   hora: string
   tipo: 'grupo' | 'avaliador' | 'sistema'
+  usuario_id: number | null
 }
 
 interface Props {
@@ -28,19 +29,20 @@ export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnvi
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens])
 
-  // Mapeia autores de mensagens do grupo → índice de cor, na ordem de aparição
-  const corPorAutor = useMemo(() => {
-    const mapa = new Map<string, number>()
+  // Mapeia por usuario_id — imune a mudanças de nome_custom
+  const corPorUsuario = useMemo(() => {
+    const mapa = new Map<number, number>()
     for (const m of mensagens) {
-      if (m.tipo === 'grupo' && !mapa.has(m.autor)) {
-        mapa.set(m.autor, mapa.size)
+      if (m.tipo === 'grupo' && m.usuario_id !== null && !mapa.has(m.usuario_id)) {
+        mapa.set(m.usuario_id, mapa.size)
       }
     }
     return mapa
   }, [mensagens])
 
-  function getCorAutor(autor: string) {
-    const idx = corPorAutor.get(autor) ?? 0
+  function getCorMembro(usuarioId: number | null) {
+    if (usuarioId === null) return CORES_CHAT[0]
+    const idx = corPorUsuario.get(usuarioId) ?? 0
     return CORES_CHAT[idx % CORES_CHAT.length]
   }
 
@@ -88,7 +90,7 @@ export default function AreaChat({ grupoNome, mensagens, avaliadorEntrou, onEnvi
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
         <AnimatePresence initial={false}>
           {mensagens.map(m => {
-            const cor = m.tipo === 'grupo' ? getCorAutor(m.autor) : null
+            const cor = m.tipo === 'grupo' ? getCorMembro(m.usuario_id) : null
 
             return (
               <motion.div key={m.id}

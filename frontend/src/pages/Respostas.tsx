@@ -88,7 +88,17 @@ export default function Respostas() {
         setCarregando(false)
       }
     }
+
+    async function atualizarSilencioso() {
+      try {
+        const dados = await listarMinhasRespostas()
+        setDossies(dados)
+      } catch { /* silencia erros de rede no poll silencioso */ }
+    }
+
     carregar()
+    const intervalo = setInterval(atualizarSilencioso, 20000)
+    return () => clearInterval(intervalo)
   }, [])
 
   function abrirModal(resposta: RespostaAPI, dossieNome: string) {

@@ -62,6 +62,25 @@ export async function reorganizarMembros(movimentos: MovimentoMembro[]): Promise
   await api.post('/grupos/reorganizar', { movimentos })
 }
 
+export interface LockStatus {
+  bloqueado: boolean
+  avaliador_id: number | null
+  avaliador_nome: string | null
+}
+
+export async function adquirirLock(): Promise<void> {
+  await api.post('/grupos/lock')
+}
+
+export async function liberarLock(): Promise<void> {
+  await api.delete('/grupos/lock')
+}
+
+export async function statusLock(): Promise<LockStatus> {
+  const res = await api.get<LockStatus>('/grupos/lock')
+  return res.data
+}
+
 export async function adicionarMembro(): Promise<CredencialAPI> {
   const res = await api.post<{ credencial: CredencialAPI }>('/grupos/adicionar-membro')
   return res.data.credencial

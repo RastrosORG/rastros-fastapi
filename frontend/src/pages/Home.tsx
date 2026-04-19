@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ClipboardList, Activity, FileSearch, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Variants } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'
+import { meuGrupo } from '../api/gruposApi'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -121,7 +123,7 @@ function GridCards({ cards, custom }: {
 }
 
 // ── Home Avaliador ──────────────────────────────────────────────
-function HomeAvaliador() {
+function HomeAvaliador({ login }: { login: string }) {
   return (
     <div className="relative flex flex-col min-h-full">
       <Fundo alturaImagem="65%" alturaGrade="35%" />
@@ -133,7 +135,7 @@ function HomeAvaliador() {
         >
           <h1 className="text-4xl font-bold text-white text-center tracking-widest uppercase"
             style={{ fontFamily: 'Syne, sans-serif' }}>
-            Bem-vindo(a), <span className="text-primary">Avaliador</span>
+            Bem-vindo(a), <span className="text-primary">{login}</span>
           </h1>
           <div className="w-16 h-px bg-primary/60" />
         </motion.div>
@@ -145,7 +147,18 @@ function HomeAvaliador() {
 }
 
 // ── Home Usuário ────────────────────────────────────────────────
-function HomeUsuario() {
+function HomeUsuario({ usuarioId, login }: { usuarioId: number; login: string }) {
+  const [nomeExibicao, setNomeExibicao] = useState(login)
+
+  useEffect(() => {
+    meuGrupo()
+      .then(g => {
+        const membro = g.membros.find(m => m.usuario.id === usuarioId)
+        if (membro?.usuario.nome_custom) setNomeExibicao(membro.usuario.nome_custom)
+      })
+      .catch(() => {})
+  }, [usuarioId])
+
   return (
     <div className="relative flex flex-col min-h-full">
       <Fundo alturaImagem="60%" alturaGrade="40%" />
@@ -157,7 +170,7 @@ function HomeUsuario() {
         >
           <h1 className="text-4xl font-bold text-white text-center tracking-widest uppercase"
             style={{ fontFamily: 'Syne, sans-serif' }}>
-            Bem-vindo(a), <span className="text-primary">Agente</span>
+            Bem-vindo(a), <span className="text-primary">{nomeExibicao}</span>
           </h1>
           <div className="w-16 h-px bg-primary/60" />
           <p className="text-muted-foreground font-mono text-sm tracking-wider">
@@ -174,7 +187,8 @@ function HomeUsuario() {
 // ── Export principal ────────────────────────────────────────────
 export default function Home() {
   const usuario = useAuthStore(state => state.usuario)
-  const USER_ROLE = usuario?.is_avaliador ? 'avaliador' : 'user'
-  
-  return USER_ROLE === 'avaliador' ? <HomeAvaliador /> : <HomeUsuario />
+  if (!usuario) return null
+  return usuario.is_avaliador
+    ? <HomeAvaliador login={usuario.login} />
+    : <HomeUsuario usuarioId={usuario.id} login={usuario.login} />
 }

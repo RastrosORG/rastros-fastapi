@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Home, Users, Trophy, FileText, MessageSquare, LogOut, User, ClipboardList } from 'lucide-react'
+import { Home, Users, Trophy, FileText, MessageSquare, LogOut, ClipboardList } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
 const navUsuario = [
@@ -57,17 +57,6 @@ export default function Sidebar() {
 
       {/* Rodapé */}
       <div className="flex flex-col items-center gap-1">
-        <NavLink to="/perfil" title="Perfil"
-          className={({ isActive }) =>
-            `p-3 rounded-lg transition-all duration-200 ${
-              isActive
-                ? 'text-primary bg-primary/10'
-                : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'
-            }`
-          }
-        >
-          <User size={20} />
-        </NavLink>
         <button
           onClick={handleLogout}
           title="Sair"

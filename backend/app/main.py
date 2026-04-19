@@ -13,12 +13,31 @@ from app.api.v1.rotas import auth, usuarios, grupos, dossies, respostas, pontuac
 _migracao_concluida = False
 
 
+def _resetar_presenca_avaliador():
+    """Limpa avaliador_presente de todos os grupos.
+    Necessário após reinício do servidor — todas as conexões WS são dropadas
+    mas o flag persiste no banco, causando falso 'Avaliador presente'."""
+    from app.db.sessao import SessionLocal
+    from app.modelos.grupo import Grupo
+    db = SessionLocal()
+    try:
+        db.query(Grupo).filter(Grupo.avaliador_presente == True).update(  # noqa: E712
+            {Grupo.avaliador_presente: False}, synchronize_session=False
+        )
+        db.commit()
+    except Exception as e:
+        print(f"[startup] erro ao resetar avaliador_presente: {e}", flush=True)
+    finally:
+        db.close()
+
+
 async def _rodar_migrations():
     global _migracao_concluida
     print("[migrations] iniciando alembic upgrade head...", flush=True)
     proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "alembic", "upgrade", "head")
     codigo = await proc.wait()
     print(f"[migrations] concluído com código {codigo}", flush=True)
+    await asyncio.to_thread(_resetar_presenca_avaliador)
     _migracao_concluida = True
 
 
