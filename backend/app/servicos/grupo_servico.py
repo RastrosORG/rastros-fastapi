@@ -288,6 +288,13 @@ def adicionar_membro(db: Session) -> AdicionarMembroOutput:
         for g in grupos_4[:2]:
             membro_mover = g.membros[-1]
             membro_mover.grupo_id = int(grupo_destino.id)  # type: ignore
+            # Atualiza credencial do membro movido para o novo grupo
+            cred_mover = db.query(CredencialUsuario).filter(
+                CredencialUsuario.usuario_id == int(membro_mover.usuario_id)  # type: ignore
+            ).first()
+            if cred_mover:
+                cred_mover.grupo_id = int(grupo_destino.id)  # type: ignore
+                cred_mover.grupo_nome = str(grupo_destino.nome)
 
     login = f"user{str(_numero_inicial_login(db)).zfill(2)}"
     senha = _gerar_senha()
@@ -484,7 +491,7 @@ def listar_credenciais(db: Session) -> ListarCredenciaisOutput:
         .order_by(CredencialUsuario.grupo_id, CredencialUsuario.login)
         .all()
     )
-    ultima = max((r.criado_em for r in rows), default=None) if rows else None  # type: ignore[type-var]
+    ultima: datetime | None = max((r.criado_em for r in rows), default=None) if rows else None  # type: ignore[type-var, assignment]
     return ListarCredenciaisOutput(
         credenciais=[
             CredencialOutput(
