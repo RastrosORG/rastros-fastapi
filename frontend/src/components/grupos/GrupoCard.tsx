@@ -38,24 +38,27 @@ export default function GrupoCard({
   const meuGrupo = grupo.avaliadorId === usuario?.id.toString()
   const tamanho = grupo.membros.length
   const tamanhoOk = tamanho === 3 || tamanho === 4
+  const invalido = editando && !tamanhoOk
 
   return (
     <motion.div
       variants={fadeUp} custom={index} initial="hidden" animate="show"
       className={`bg-card/70 backdrop-blur-sm border rounded-xl overflow-hidden transition-all duration-300
-        ${meuGrupo ? 'border-primary/40' : 'border-border'}`}
+        ${invalido ? 'border-destructive/60' : meuGrupo ? 'border-primary/40' : 'border-border'}`}
     >
       {/* Header */}
       <div className={`px-4 py-3 flex items-center justify-between border-b
-        ${meuGrupo ? 'border-primary/20 bg-primary/5' : 'border-border bg-black/20'}`}>
+        ${invalido ? 'border-destructive/30 bg-destructive/5' : meuGrupo ? 'border-primary/20 bg-primary/5' : 'border-border bg-black/20'}`}>
         <div className="flex items-center gap-2">
           <h3 className="text-white font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif' }}>
             {grupo.nome}
           </h3>
           <span className={`text-xs font-mono px-1.5 py-0.5 rounded border
-            ${tamanhoOk
-              ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10'
-              : 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+            ${invalido
+              ? 'text-destructive border-destructive/30 bg-destructive/10'
+              : tamanhoOk
+                ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10'
+                : 'text-amber-400 border-amber-500/20 bg-amber-500/10'
             }`}>
             {tamanho} membros
           </span>

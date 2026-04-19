@@ -55,6 +55,7 @@ export default function GerenciarGrupos() {
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [grupoOrigemId, setGrupoOrigemId] = useState<string | null>(null)
   const [qtdUsuarios, setQtdUsuarios] = useState('')
   const [filtro, setFiltro] = useState<FiltroView>('todos')
   const [busca, setBusca] = useState('')
@@ -191,7 +192,11 @@ export default function GerenciarGrupos() {
   }
 
   // ── Drag and drop ─────────────────────────────────────────────
-  function onDragStart(e: DragStartEvent) { setActiveId(e.active.id as string) }
+  function onDragStart(e: DragStartEvent) {
+    setActiveId(e.active.id as string)
+    const g = grupos.find(grp => grp.membros.some(m => m.id === e.active.id))
+    setGrupoOrigemId(g?.id ?? null)
+  }
 
   const onDragOver = useCallback((e: DragOverEvent) => {
     const { active, over } = e
@@ -211,31 +216,39 @@ export default function GerenciarGrupos() {
 
   async function onDragEnd(e: DragEndEvent) {
     setActiveId(null)
-    if (!e.over) return
 
-    const { active, over } = e
-    const grupoOrigem = grupos.find(g => g.membros.some(m => m.id === active.id))
-    const grupoDestino = grupos.find(g =>
-      g.membros.some(m => m.id === over.id) || g.id === over.id
-    )
+    if (!e.over || !grupoOrigemId) {
+      setGrupoOrigemId(null)
+      return
+    }
 
-    if (!grupoOrigem || !grupoDestino || grupoOrigem.id === grupoDestino.id) return
+    const { active } = e
+    // Após onDragOver, o membro já está no grupo destino no estado local
+    const grupoDestino = grupos.find(g => g.membros.some(m => m.id === active.id))
+
+    if (!grupoDestino || grupoOrigemId === grupoDestino.id) {
+      setGrupoOrigemId(null)
+      return
+    }
 
     const invalidos = grupos.filter(g => g.membros.length < 3 || g.membros.length > 4)
     if (invalidos.length > 0) {
-      mostrarToast('Grupos devem ter entre 3 e 4 membros.', 'erro')
+      mostrarToast('Ajuste os grupos para que todos tenham entre 3 e 4 membros.', 'erro')
       await carregarGrupos()
+      setGrupoOrigemId(null)
       return
     }
 
     try {
       await moverMembro(parseInt(active.id as string), parseInt(grupoDestino.id))
+      await carregarCredenciais()
       mostrarToast('Membro movido!', 'ok')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       mostrarToast(e?.response?.data?.detail ?? 'Erro ao mover membro.', 'erro')
       await carregarGrupos()
     }
+    setGrupoOrigemId(null)
   }
 
   // ── Exclusão de usuário ───────────────────────────────────────
@@ -436,11 +449,17 @@ export default function GerenciarGrupos() {
               )}
             </div>
             {(!lockEdicao || lockEdicao.avaliadorId === avaliadorId) && (
-              <button onClick={editando ? desativarEdicao : ativarEdicao}
+              <button
+                onClick={editando ? desativarEdicao : ativarEdicao}
+                disabled={editando && grupos.some(g => g.membros.length < 3 || g.membros.length > 4)}
+                title={editando && grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
+                  ? 'Todos os grupos precisam ter entre 3 e 4 membros' : undefined}
                 className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
                            tracking-widest rounded-lg transition-all uppercase
                            ${editando
-                             ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                             ? grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
+                               ? 'border-destructive/30 bg-destructive/5 text-destructive/40 cursor-not-allowed'
+                               : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
                              : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
                            }`}>
                 {editando ? <><CheckCircle size={13} /> Concluir</> : <><Unlock size={13} /> Editar</>}

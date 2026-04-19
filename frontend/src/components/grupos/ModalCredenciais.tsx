@@ -39,6 +39,7 @@ export default function ModalCredenciais({ credenciais, ultimaAtualizacao, onFec
         body * { visibility: hidden; }
         #credenciais-print, #credenciais-print * { visibility: visible; }
         #credenciais-print {
+          display: block !important;
           position: fixed;
           top: 0;
           left: 0;
