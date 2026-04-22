@@ -14,3 +14,11 @@ class UsuarioNomeOutput(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AvaliadorOutput(BaseModel):
+    id: int
+    login: str
+
+    class Config:
+        from_attributes = True

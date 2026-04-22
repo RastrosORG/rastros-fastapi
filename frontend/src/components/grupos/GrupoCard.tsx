@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDroppable } from '@dnd-kit/core'
-import { ArrowRightLeft, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, Trash2, Pencil, Check, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import MembroCard from './MembroCard'
 import type { Usuario } from './MembroCard'
@@ -30,10 +31,11 @@ interface Props {
   onTransferir: (grupoId: string) => void
   onExcluirGrupo?: (grupo: Grupo) => void
   onExcluirMembro?: (usuario: Usuario, grupoNome: string) => void
+  onRenomear?: (grupoId: string, novoNome: string) => void
 }
 
 export default function GrupoCard({
-  grupo, editando, index, onTransferir, onExcluirGrupo, onExcluirMembro,
+  grupo, editando, index, onTransferir, onExcluirGrupo, onExcluirMembro, onRenomear,
 }: Props) {
   const usuario = useAuthStore(s => s.usuario)
   const meuGrupo = grupo.avaliadorId === usuario?.id.toString()
@@ -41,8 +43,22 @@ export default function GrupoCard({
   const tamanhoOk = tamanho === 3 || tamanho === 4
   const invalido = editando && !tamanhoOk
 
-  // Registra o card como droppable para que o avaliador possa soltar membros
-  // diretamente no grupo, sem precisar mirar em um membro específico
+  const [editandoNome, setEditandoNome] = useState(false)
+  const [novoNome, setNovoNome] = useState(grupo.nome)
+
+  function confirmarRename() {
+    const nome = novoNome.trim()
+    if (nome.length >= 2 && nome !== grupo.nome) {
+      onRenomear?.(grupo.id, nome)
+    }
+    setEditandoNome(false)
+  }
+
+  function cancelarRename() {
+    setNovoNome(grupo.nome)
+    setEditandoNome(false)
+  }
+
   const { setNodeRef: setGrupoRef, isOver } = useDroppable({
     id: `grupo-${grupo.id}`,
     disabled: !editando,
@@ -57,11 +73,54 @@ export default function GrupoCard({
       {/* Header */}
       <div className={`px-4 py-3 flex items-center justify-between border-b
         ${invalido ? 'border-destructive/30 bg-destructive/5' : meuGrupo ? 'border-primary/20 bg-primary/5' : 'border-border bg-black/20'}`}>
-        <div className="flex items-center gap-2">
-          <h3 className="text-white font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif' }}>
-            {grupo.nome}
-          </h3>
-          <span className={`text-xs font-mono px-1.5 py-0.5 rounded border
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {editando && editandoNome ? (
+            <div className="flex items-center gap-1 flex-1">
+              <input
+                value={novoNome}
+                onChange={e => setNovoNome(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') confirmarRename()
+                  if (e.key === 'Escape') cancelarRename()
+                }}
+                autoFocus
+                maxLength={50}
+                className="bg-transparent border-b border-primary/50 text-white font-bold text-sm
+                           focus:outline-none w-28 font-[Syne,sans-serif]"
+              />
+              <button
+                onPointerDown={e => e.stopPropagation()}
+                onClick={confirmarRename}
+                className="p-0.5 text-primary hover:text-primary/70 transition-colors"
+              >
+                <Check size={12} />
+              </button>
+              <button
+                onPointerDown={e => e.stopPropagation()}
+                onClick={cancelarRename}
+                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-white font-bold text-sm truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
+                {grupo.nome}
+              </h3>
+              {editando && onRenomear && (
+                <button
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={() => { setNovoNome(grupo.nome); setEditandoNome(true) }}
+                  title="Renomear grupo"
+                  className="p-0.5 rounded text-muted-foreground/40 hover:text-primary transition-colors flex-shrink-0"
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
+            </>
+          )}
+          <span className={`text-xs font-mono px-1.5 py-0.5 rounded border flex-shrink-0
             ${invalido
               ? 'text-destructive border-destructive/30 bg-destructive/10'
               : tamanhoOk
@@ -71,21 +130,26 @@ export default function GrupoCard({
             {tamanho} membros
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
           <span className="text-xs font-mono text-muted-foreground">
             {meuGrupo
               ? <span className="text-primary/70">Seu grupo</span>
               : grupo.avaliadorNome
             }
           </span>
-          {editando && !meuGrupo && (
-            <button onClick={() => onTransferir(grupo.id)} title="Transferir para mim"
-              className="p-1 rounded text-muted-foreground hover:text-primary transition-colors">
+          {editando && (
+            <button
+              onPointerDown={e => e.stopPropagation()}
+              onClick={() => onTransferir(grupo.id)}
+              title="Transferir grupo para outro avaliador"
+              className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
+            >
               <ArrowRightLeft size={13} />
             </button>
           )}
           {editando && onExcluirGrupo && (
             <button
+              onPointerDown={e => e.stopPropagation()}
               onClick={() => onExcluirGrupo(grupo)}
               title="Excluir grupo permanentemente"
               className="p-1 rounded text-muted-foreground/40 hover:text-destructive transition-colors"

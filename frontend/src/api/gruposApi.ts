@@ -96,6 +96,11 @@ export async function atualizarNomeGrupo(grupoId: number, nomeCustom: string): P
   return res.data
 }
 
+export async function renomearGrupoAvaliador(grupoId: number, nomeCustom: string): Promise<GrupoAPI> {
+  const res = await api.patch<GrupoAPI>(`/grupos/${grupoId}/renomear`, { nome_custom: nomeCustom })
+  return res.data
+}
+
 export interface LogExclusaoUsuarioAPI {
   id: number
   tipo: string
@@ -126,5 +131,15 @@ export interface ListarCredenciaisOutput {
 
 export async function listarCredenciais(): Promise<ListarCredenciaisOutput> {
   const res = await api.get<ListarCredenciaisOutput>('/grupos/credenciais')
+  return res.data
+}
+
+export interface AvaliadorAPI {
+  id: number
+  login: string
+}
+
+export async function listarAvaliadores(): Promise<AvaliadorAPI[]> {
+  const res = await api.get<AvaliadorAPI[]>('/usuarios/avaliadores')
   return res.data
 }

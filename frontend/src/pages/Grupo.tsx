@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Users, Pencil, Check, X, Lock, ShieldCheck, Trophy, FileText, Clock } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'
-import { meuGrupo, atualizarNomeGrupo } from '../api/gruposApi'
+import { meuGrupo } from '../api/gruposApi'
 import type { GrupoAPI } from '../api/gruposApi'
 import { atualizarNomeUsuario } from '../api/usuariosApi'
 import { listarRanking } from '../api/pontuacaoApi'
@@ -31,11 +31,6 @@ export default function Grupo() {
 
   const [grupo, setGrupo] = useState<GrupoAPI | null>(null)
   const [carregando, setCarregando] = useState(true)
-
-  const [editandoGrupo, setEditandoGrupo] = useState(false)
-  const [inputGrupo, setInputGrupo] = useState('')
-  const [erroGrupo, setErroGrupo] = useState('')
-  const [salvandoGrupo, setSalvandoGrupo] = useState(false)
 
   const [editandoNome, setEditandoNome] = useState(false)
   const [inputNome, setInputNome] = useState('')
@@ -101,24 +96,6 @@ export default function Grupo() {
   function mostrarToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
-  }
-
-  async function salvarNomeGrupo() {
-    if (!grupo) return
-    const t = inputGrupo.trim()
-    if (!t)           { setErroGrupo('Digite um nome'); return }
-    if (t.length < 3) { setErroGrupo('Nome muito curto'); return }
-    try {
-      setSalvandoGrupo(true)
-      const atualizado = await atualizarNomeGrupo(grupo.id, t)
-      setGrupo(atualizado)
-      setEditandoGrupo(false)
-      mostrarToast('Nome do grupo atualizado!')
-    } catch {
-      setErroGrupo('Erro ao salvar. Tente novamente.')
-    } finally {
-      setSalvandoGrupo(false)
-    }
   }
 
   async function salvarNomeUsuario() {
@@ -242,50 +219,8 @@ export default function Grupo() {
                 <div className="flex flex-col gap-1.5">
                   <p className="text-xs font-mono text-primary/60 tracking-widest uppercase">Nome da Equipe</p>
 
-                  {editandoGrupo ? (
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <input value={inputGrupo}
-                          onChange={e => { setInputGrupo(e.target.value); setErroGrupo('') }}
-                          onKeyDown={e => { if (e.key === 'Enter') salvarNomeGrupo(); if (e.key === 'Escape') setEditandoGrupo(false) }}
-                          autoFocus maxLength={30} disabled={salvandoGrupo}
-                          className="bg-input border border-primary/50 focus:border-primary rounded-lg px-3 py-1.5 text-white font-bold text-2xl focus:outline-none w-52 disabled:opacity-50"
-                          style={{ fontFamily: 'Syne, sans-serif' }}
-                        />
-                        <button onClick={salvarNomeGrupo} disabled={salvandoGrupo}
-                          className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all disabled:opacity-50">
-                          <Check size={15} />
-                        </button>
-                        <button onClick={() => setEditandoGrupo(false)} disabled={salvandoGrupo}
-                          className="p-2 rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/30 transition-all disabled:opacity-50">
-                          <X size={15} />
-                        </button>
-                      </div>
-                      {erroGrupo && <span className="text-xs text-destructive font-mono">{erroGrupo}</span>}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-3xl font-bold text-white"
-                        style={{ fontFamily: 'Syne, sans-serif' }}>{nomeGrupo}</h2>
-                      {grupo.nome_alterado ? (
-                        <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground/40 border border-border rounded-full px-2 py-0.5">
-                          <Lock size={10} /><span>fixado</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setInputGrupo(nomeGrupo); setErroGrupo(''); setEditandoGrupo(true) }}
-                          className="flex items-center gap-1.5 text-xs font-mono text-primary/60 hover:text-primary border border-primary/20 hover:border-primary/40 rounded-full px-3 py-1 transition-all">
-                          <Pencil size={11} />alterar
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {!grupo.nome_alterado && !editandoGrupo && (
-                    <p className="text-xs font-mono text-muted-foreground/40">
-                      ⚠ Pode ser alterado apenas uma vez.
-                    </p>
-                  )}
+                  <h2 className="text-3xl font-bold text-white"
+                    style={{ fontFamily: 'Syne, sans-serif' }}>{nomeGrupo}</h2>
                 </div>
 
                 <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 py-1.5 shrink-0">

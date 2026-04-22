@@ -21,3 +21,4 @@ class RankingCompletoOutput(BaseModel):
     ranking: List[GrupoPontuacaoOutput]
     atividade: List[IntervaloDadosOutput]
     evolucao: List[IntervaloDadosOutput]
+    desempenho: List[IntervaloDadosOutput]

@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ChatWidget from '../chat/ChatWidget'
@@ -5,6 +6,15 @@ import TimerBar from '../timer/TimerBar'
 import { useAuthStore } from '../../store/authStore'
 import type { AuthState } from '../../store/authStore'
 import { useTimer } from '../../hooks/useTimer'
+import { useChatNotificacoes } from '../../hooks/useChat'
+import { useChatNotifStore } from '../../store/chatNotifStore'
+
+// Montado apenas para avaliadores — mantém o WS de notificações ativo em qualquer página
+function ChatNotifListener() {
+  const increment = useChatNotifStore(s => s.increment)
+  useChatNotificacoes(useCallback(() => increment(), [increment]))
+  return null
+}
 
 export default function Layout() {
   const usuario = useAuthStore((state: AuthState) => state.usuario)
@@ -34,6 +44,7 @@ export default function Layout() {
         </main>
       </div>
       {USER_ROLE === 'user' && <ChatWidget />}
+      {USER_ROLE === 'avaliador' && <ChatNotifListener />}
     </div>
   )
 }

@@ -181,6 +181,7 @@ export default function Dossies() {
     if (!formResposta.titulo.trim()) novosErros.titulo = 'Título é obrigatório'
     if (!formResposta.descricao.trim()) novosErros.descricao = 'Descrição é obrigatória'
     if (!formResposta.categoria) novosErros.categoria = 'Selecione uma categoria'
+    if (!formResposta.link.trim()) novosErros.link = 'Link é obrigatório'
     if (formResposta.arquivos.length === 0) novosErros.arquivos = 'Anexe pelo menos um arquivo'
     if (Object.keys(novosErros).length > 0) { setErros(novosErros); return }
 
@@ -191,7 +192,7 @@ export default function Dossies() {
         titulo: formResposta.titulo,
         descricao: formResposta.descricao,
         categoria: formResposta.categoria,
-        link: formResposta.link || undefined,
+        link: formResposta.link,
         arquivos: formResposta.arquivos,
       })
       setModalDossie(null)
@@ -713,6 +714,24 @@ export default function Dossies() {
         </AnimatePresence>
 
         <AnimatePresence>
+          {modalDetalhes && (
+            <ModalDetalhesDossie
+              dossie={modalDetalhes}
+              userRole={USER_ROLE}
+              onFechar={() => setModalDetalhes(null)}
+              onAbrirMapa={() => {
+                if (modalDetalhes.coordenadas)
+                  setModalMapa({ local: modalDetalhes.local, coordenadas: modalDetalhes.coordenadas })
+              }}
+              onAbrirFoto={() => {
+                if (modalDetalhes.foto)
+                  setModalFoto({ nome: modalDetalhes.nome, url: modalDetalhes.foto })
+              }}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
           {modalFoto && (
             <ModalFoto
               nome={modalFoto.nome}
@@ -728,24 +747,6 @@ export default function Dossies() {
               local={modalMapa.local}
               coordenadas={modalMapa.coordenadas}
               onFechar={() => setModalMapa(null)}
-            />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {modalDetalhes && (
-            <ModalDetalhesDossie
-              dossie={modalDetalhes}
-              userRole={USER_ROLE}
-              onFechar={() => setModalDetalhes(null)}
-              onAbrirMapa={() => {
-                if (modalDetalhes.coordenadas)
-                  setModalMapa({ local: modalDetalhes.local, coordenadas: modalDetalhes.coordenadas })
-              }}
-              onAbrirFoto={() => {
-                if (modalDetalhes.foto)
-                  setModalFoto({ nome: modalDetalhes.nome, url: modalDetalhes.foto })
-              }}
             />
           )}
         </AnimatePresence>

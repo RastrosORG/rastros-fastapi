@@ -124,13 +124,15 @@ export default function ModalRespostaUsuario({
             {/* Link */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-mono text-muted-foreground tracking-widest uppercase">
-                Link <span className="text-muted-foreground/40">(opcional)</span>
+                Link <span className="text-primary">*</span>
               </label>
-              <input value={form.link} onChange={e => onChangeForm({ ...form, link: e.target.value })}
+              <input value={form.link}
+                onChange={e => { onChangeForm({ ...form, link: e.target.value }); onLimparErro('link') }}
                 placeholder="https://..."
-                className="bg-input border border-border focus:border-primary/50 rounded-lg
-                           px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50
-                           font-mono focus:outline-none transition-colors" />
+                className={`bg-input border rounded-lg px-4 py-2.5 text-sm text-foreground
+                           placeholder:text-muted-foreground/50 font-mono focus:outline-none transition-colors
+                           ${erros.link ? 'border-destructive' : 'border-border focus:border-primary/50'}`} />
+              {erros.link && <span className="text-xs text-destructive font-mono">{erros.link}</span>}
             </div>
 
             {/* Arquivos */}

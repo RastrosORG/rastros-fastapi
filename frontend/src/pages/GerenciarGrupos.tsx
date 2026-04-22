@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Plus, Key, Lock, Unlock, CheckCircle, X,
-  AlertTriangle, RefreshCw, UserPlus, Search, ClipboardList
+  AlertTriangle, RefreshCw, UserPlus, Search, ClipboardList, Trash2,
 } from 'lucide-react'
 import {
   DndContext, PointerSensor, useSensor, useSensors, DragOverlay, closestCenter
@@ -19,15 +19,33 @@ import ModalTransferir from '../components/grupos/ModalTransferir'
 import ModalConfirmarExclusaoUsuario from '../components/grupos/ModalConfirmarExclusaoUsuario'
 import ModalConfirmarExclusaoGrupo from '../components/grupos/ModalConfirmarExclusaoGrupo'
 import ModalLogExclusoesGrupos from '../components/grupos/ModalLogExclusoesGrupos'
+import ModalConfirmarConclusao from '../components/grupos/ModalConfirmarConclusao'
+import ModalGerando from '../components/grupos/ModalGerando'
 import {
   listarTodosGrupos, gerarUsuarios, transferirGrupo as transferirGrupoApi,
   adicionarMembro, excluirUsuario, excluirGrupo, listarLogExclusoesGrupos,
   listarCredenciais, reorganizarMembros, adquirirLock, liberarLock, statusLock,
+  renomearGrupoAvaliador, listarAvaliadores,
 } from '../api/gruposApi'
-import type { CredencialAPI, LogExclusaoUsuarioAPI } from '../api/gruposApi'
+import type { CredencialAPI, LogExclusaoUsuarioAPI, AvaliadorAPI } from '../api/gruposApi'
 import { useAuthStore } from '../store/authStore'
 
 type FiltroView = 'todos' | 'meus' | 'outros'
+
+// Exclusão de usuário individual pendente
+type PendingUserDeletion = {
+  usuario: Usuario
+  grupoId: string
+  grupoNome: string
+  motivo: string
+}
+
+// Exclusão de grupo inteiro pendente (inclui snapshot dos membros para exibição e restauração)
+type PendingGroupDeletion = {
+  grupo: Grupo
+  motivo: string
+  indiceOriginal: number
+}
 
 export default function GerenciarGrupos() {
   const usuario = useAuthStore(s => s.usuario)
@@ -51,6 +69,7 @@ export default function GerenciarGrupos() {
     } catch { return null }
   })
 
+  const [avaliadores, setAvaliadores] = useState<AvaliadorAPI[]>([])
   const [ultimaGeracao] = useState<Date | null>(null)
   const [lockEdicao, setLockEdicao] = useState<{ avaliadorId: string; avaliadorNome: string } | null>(null)
   const [editando, setEditando] = useState(false)
@@ -63,28 +82,40 @@ export default function GerenciarGrupos() {
   const [busca, setBusca] = useState('')
   const [toast, setToast] = useState<{ msg: string; tipo: 'ok' | 'erro' } | null>(null)
 
+  // Filas de exclusão pendentes (só executadas ao Concluir)
+  const [pendingUsers, setPendingUsers] = useState<PendingUserDeletion[]>([])
+  const [pendingGroups, setPendingGroups] = useState<PendingGroupDeletion[]>([])
+
   // Modais
   const [modalGerar, setModalGerar] = useState(false)
   const [modalConfirmar, setModalConfirmar] = useState(false)
+  const [gerando, setGerando] = useState(false)
   const [modalCredenciais, setModalCredenciais] = useState(false)
   const [modalAdicionarUm, setModalAdicionarUm] = useState(false)
   const [modalTransferir, setModalTransferir] = useState<string | null>(null)
 
-  // Exclusão de usuário
   const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<{ usuario: Usuario; grupoNome: string } | null>(null)
   const [excluindoUsuario, setExcluindoUsuario] = useState(false)
-  // Exclusão de grupo
   const [grupoParaExcluir, setGrupoParaExcluir] = useState<Grupo | null>(null)
   const [excluindoGrupo, setExcluindoGrupo] = useState(false)
-  // Log de exclusões
   const [modalLog, setModalLog] = useState(false)
   const [logs, setLogs] = useState<LogExclusaoUsuarioAPI[]>([])
+  const [modalConfirmarConclusao, setModalConfirmarConclusao] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const editandoRef = useRef(false)
   useEffect(() => { editandoRef.current = editando }, [editando])
 
-  // Polling do lock compartilhado — mantém todos os avaliadores sincronizados
+  // Bug 5: libera o lock se o avaliador navegar para outra página enquanto edita
+  useEffect(() => {
+    return () => {
+      if (editandoRef.current) {
+        liberarLock().catch(() => {})
+      }
+    }
+  }, [])
+
+  // Polling do lock compartilhado
   useEffect(() => {
     async function verificarLock() {
       try {
@@ -103,6 +134,7 @@ export default function GerenciarGrupos() {
 
   useEffect(() => {
     carregarGrupos()
+    listarAvaliadores().then(setAvaliadores).catch(() => {/* ignora */})
   }, [])
 
   async function carregarGrupos() {
@@ -146,11 +178,7 @@ export default function GerenciarGrupos() {
   async function abrirModalCredenciais() {
     setModalCredenciais(true)
     setCarregandoCredenciais(true)
-    try {
-      await carregarCredenciais()
-    } finally {
-      setCarregandoCredenciais(false)
-    }
+    try { await carregarCredenciais() } finally { setCarregandoCredenciais(false) }
   }
 
   function mostrarToast(msg: string, tipo: 'ok' | 'erro') {
@@ -179,17 +207,19 @@ export default function GerenciarGrupos() {
   }
 
   async function confirmarGerar() {
+    setModalConfirmar(false)
+    setGerando(true)
     try {
       const qtd = parseInt(qtdUsuarios)
       const resultado = await gerarUsuarios(qtd)
       await Promise.all([carregarGrupos(), carregarCredenciais()])
-      setModalConfirmar(false)
       setQtdUsuarios('')
       mostrarToast(`${resultado.usuarios_criados} usuários gerados em ${resultado.grupos_criados} grupos!`, 'ok')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       mostrarToast(e?.response?.data?.detail ?? 'Erro ao gerar usuários.', 'erro')
-      setModalConfirmar(false)
+    } finally {
+      setGerando(false)
     }
   }
 
@@ -211,6 +241,7 @@ export default function GerenciarGrupos() {
   async function ativarEdicao() {
     try {
       await adquirirLock()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       const detail = e?.response?.data?.detail
       const nome = detail?.avaliador_nome ?? 'Outro avaliador'
@@ -227,18 +258,60 @@ export default function GerenciarGrupos() {
     setGruposSnapshot(null)
     setLockEdicao(null)
     setEditando(false)
+    setPendingUsers([])
+    setPendingGroups([])
     try { await liberarLock() } catch { /* ignora */ }
   }
 
-  async function concluirEdicao() {
+  function tentarConcluir() {
+    if (pendingUsers.length > 0 || pendingGroups.length > 0) {
+      setModalConfirmarConclusao(true)
+    } else {
+      executarConclusao()
+    }
+  }
+
+  async function executarConclusao() {
+    setModalConfirmarConclusao(false)
     if (!gruposSnapshot) {
       setEditando(false)
       setLockEdicao(null)
+      setPendingUsers([])
+      setPendingGroups([])
       try { await liberarLock() } catch { /* ignora */ }
       return
     }
 
-    // Detecta membros que trocaram de grupo
+    setSalvando(true)
+
+    // Captura os valores das filas antes de qualquer await (fechamento estável para os toasts)
+    const usersParaExcluir = [...pendingUsers]
+    const gruposParaExcluir = [...pendingGroups]
+    const houveLimpeza = usersParaExcluir.length > 0 || gruposParaExcluir.length > 0
+
+    // 1. Exclusões de usuários individuais
+    // Rastreia os já excluídos para não repetir em caso de retry
+    const idsUserExcluidos = new Set<string>()
+    for (const pending of usersParaExcluir) {
+      try {
+        await excluirUsuario(parseInt(pending.usuario.id), pending.motivo)
+        idsUserExcluidos.add(pending.usuario.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
+        // Remove da fila apenas os que já foram excluídos com sucesso
+        setPendingUsers(prev => prev.filter(p => !idsUserExcluidos.has(p.usuario.id)))
+        mostrarToast(
+          `Erro ao excluir ${pending.usuario.login}: ${e?.response?.data?.detail ?? 'erro desconhecido'}`,
+          'erro'
+        )
+        setSalvando(false)
+        return
+      }
+    }
+    setPendingUsers([])
+
+    // 2. Reorganização via DnD — ANTES das exclusões de grupo para evitar que membros
+    //    movidos para fora de um grupo deletado sejam apagados junto com ele no banco
     const movimentos: { usuario_id: number; grupo_id: number }[] = []
     for (const grupo of grupos) {
       for (const membro of grupo.membros) {
@@ -250,21 +323,46 @@ export default function GerenciarGrupos() {
     }
 
     if (movimentos.length > 0) {
-      setSalvando(true)
       try {
         await reorganizarMembros(movimentos)
-        await Promise.all([carregarGrupos(), carregarCredenciais()])
-        mostrarToast(`${movimentos.length} membro(s) realocado(s) com sucesso!`, 'ok')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
-        mostrarToast(e?.response?.data?.detail ?? 'Erro ao salvar mudanças.', 'erro')
+        mostrarToast(e?.response?.data?.detail ?? 'Erro ao salvar reorganização.', 'erro')
         await carregarGrupos()
         setSalvando(false)
         return
       }
-      setSalvando(false)
     }
 
+    // 3. Exclusões de grupos inteiros — depois da reorganização para que membros
+    //    movidos para fora já estejam em outro grupo no banco
+    const idsGrupoExcluidos = new Set<string>()
+    for (const pending of gruposParaExcluir) {
+      try {
+        await excluirGrupo(parseInt(pending.grupo.id), pending.motivo)
+        idsGrupoExcluidos.add(pending.grupo.id)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (e: any) {
+        setPendingGroups(prev => prev.filter(p => !idsGrupoExcluidos.has(p.grupo.id)))
+        mostrarToast(
+          `Erro ao excluir grupo ${pending.grupo.nome}: ${e?.response?.data?.detail ?? 'erro desconhecido'}`,
+          'erro'
+        )
+        setSalvando(false)
+        return
+      }
+    }
+    setPendingGroups([])
+
+    // Recarrega e exibe resultado
+    await Promise.all([carregarGrupos(), carregarCredenciais()])
+
+    const partes: string[] = []
+    if (movimentos.length > 0) partes.push(`${movimentos.length} membro(s) realocado(s)`)
+    if (houveLimpeza) partes.push('exclusões aplicadas')
+    if (partes.length > 0) mostrarToast(`${partes.join(' e ')} com sucesso!`, 'ok')
+
+    setSalvando(false)
     setGruposSnapshot(null)
     setLockEdicao(null)
     setEditando(false)
@@ -295,6 +393,23 @@ export default function GerenciarGrupos() {
   // ── Exclusão de usuário ───────────────────────────────────────
   async function confirmarExcluirUsuario(motivo: string) {
     if (!usuarioParaExcluir) return
+
+    if (editando) {
+      const grupoAtual = grupos.find(g => g.membros.some(m => m.id === usuarioParaExcluir.usuario.id))
+      setPendingUsers(prev => [...prev, {
+        usuario: usuarioParaExcluir.usuario,
+        grupoId: grupoAtual?.id ?? usuarioParaExcluir.usuario.grupoId,
+        grupoNome: usuarioParaExcluir.grupoNome,
+        motivo,
+      }])
+      setGrupos(prev => prev.map(g => ({
+        ...g,
+        membros: g.membros.filter(m => m.id !== usuarioParaExcluir.usuario.id),
+      })))
+      setUsuarioParaExcluir(null)
+      return
+    }
+
     setExcluindoUsuario(true)
     try {
       await excluirUsuario(parseInt(usuarioParaExcluir.usuario.id), motivo)
@@ -309,13 +424,50 @@ export default function GerenciarGrupos() {
     }
   }
 
+  function desfazerExclusaoUsuario(usuarioId: string) {
+    const pending = pendingUsers.find(p => p.usuario.id === usuarioId)
+    if (!pending) return
+
+    // Bug 4: o grupo de destino pode estar ele mesmo na fila de exclusão.
+    // Nesse caso, não tem como restaurar o usuário — o grupo não existe mais no estado.
+    const grupoEstaSendoExcluido = pendingGroups.some(pg => pg.grupo.id === pending.grupoId)
+    if (grupoEstaSendoExcluido) {
+      mostrarToast(
+        `O grupo "${pending.grupoNome}" também está sendo excluído. Desfaça a exclusão do grupo primeiro.`,
+        'erro'
+      )
+      return
+    }
+
+    setGrupos(prev => prev.map(g =>
+      g.id === pending.grupoId ? { ...g, membros: [...g.membros, pending.usuario] } : g
+    ))
+    setPendingUsers(prev => prev.filter(p => p.usuario.id !== usuarioId))
+  }
+
   // ── Exclusão de grupo ─────────────────────────────────────────
   async function confirmarExcluirGrupo(motivo: string) {
     if (!grupoParaExcluir) return
+
+    if (editando) {
+      // Captura os membros atuais do grupo (inclui quem foi movido via DnD)
+      const grupoComMembrosAtuais = grupos.find(g => g.id === grupoParaExcluir.id) ?? grupoParaExcluir
+      const indiceOriginal = grupos.findIndex(g => g.id === grupoParaExcluir.id)
+
+      setPendingGroups(prev => [...prev, { grupo: grupoComMembrosAtuais, motivo, indiceOriginal }])
+
+      // Remove o grupo da view
+      setGrupos(prev => prev.filter(g => g.id !== grupoParaExcluir.id))
+      setGrupoParaExcluir(null)
+      return
+    }
+
     setExcluindoGrupo(true)
     try {
       await excluirGrupo(parseInt(grupoParaExcluir.id), motivo)
-      await carregarGrupos()
+      const remover = (gs: Grupo[]) => gs.filter(g => g.id !== grupoParaExcluir.id)
+      setGrupos(remover)
+      if (gruposSnapshot) setGruposSnapshot(remover(gruposSnapshot))
       mostrarToast(`Grupo ${grupoParaExcluir.nome} excluído.`, 'ok')
       setGrupoParaExcluir(null)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -324,6 +476,19 @@ export default function GerenciarGrupos() {
     } finally {
       setExcluindoGrupo(false)
     }
+  }
+
+  function desfazerExclusaoGrupo(grupoId: string) {
+    const pending = pendingGroups.find(p => p.grupo.id === grupoId)
+    if (!pending) return
+    setGrupos(prev => {
+      const novo = [...prev]
+      // Reinsere na posição original; se a lista encolheu usa o fim
+      const pos = Math.min(pending.indiceOriginal, novo.length)
+      novo.splice(pos, 0, pending.grupo)
+      return novo
+    })
+    setPendingGroups(prev => prev.filter(p => p.grupo.id !== grupoId))
   }
 
   // ── Log de exclusões ──────────────────────────────────────────
@@ -341,7 +506,19 @@ export default function GerenciarGrupos() {
   async function transferirGrupo(grupoId: string, avId: string) {
     try {
       await transferirGrupoApi(parseInt(grupoId), parseInt(avId))
-      await carregarGrupos()
+
+      if (editando) {
+        // Durante edição: atualiza só o dono no estado local para não apagar
+        // as movimentações de DnD não salvas ainda
+        const avNovo = avaliadores.find(a => a.id.toString() === avId)
+        const atualizarDono = (g: Grupo) =>
+          g.id === grupoId ? { ...g, avaliadorId: avId, avaliadorNome: avNovo?.login ?? avId } : g
+        setGrupos(prev => prev.map(atualizarDono))
+        setGruposSnapshot(prev => prev ? prev.map(atualizarDono) : null)
+      } else {
+        await carregarGrupos()
+      }
+
       setModalTransferir(null)
       mostrarToast('Grupo transferido!', 'ok')
     } catch {
@@ -349,15 +526,29 @@ export default function GerenciarGrupos() {
     }
   }
 
+  // ── Renomear grupo (avaliador) ────────────────────────────────
+  async function renomearGrupo(grupoId: string, novoNome: string) {
+    try {
+      await renomearGrupoAvaliador(parseInt(grupoId), novoNome)
+      const atualizarNome = (g: Grupo) => g.id === grupoId ? { ...g, nome: novoNome } : g
+      setGrupos(prev => prev.map(atualizarNome))
+      setGruposSnapshot(prev => prev ? prev.map(atualizarNome) : null)
+      mostrarToast('Nome do grupo atualizado!', 'ok')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      mostrarToast(e?.response?.data?.detail ?? 'Erro ao renomear grupo.', 'erro')
+    }
+  }
+
   const usuarioAtivo = grupos.flatMap(g => g.membros).find(m => m.id === activeId)
   const podeGerar = !ultimaGeracao || (Date.now() - ultimaGeracao.getTime()) / 36e5 >= 24
+  const grupoInvalido = grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
+  const totalPendente = pendingUsers.length + pendingGroups.length
 
   // ── Tela de carregamento ──────────────────────────────────────
   if (carregando) {
     return (
-      <div className="flex items-center justify-center min-h-full" style={{
-        backgroundColor: '#0d0d0f',
-      }}>
+      <div className="flex items-center justify-center min-h-full" style={{ backgroundColor: '#0d0d0f' }}>
         <span className="font-mono text-xs text-muted-foreground tracking-widest uppercase animate-pulse">
           Carregando grupos...
         </span>
@@ -448,7 +639,6 @@ export default function GerenciarGrupos() {
                 </button>
               ))}
             </div>
-
             <div className="flex items-center gap-2 bg-input border border-border rounded-lg px-3 py-1.5 ml-auto">
               <Search size={14} className="text-muted-foreground" />
               <input
@@ -458,76 +648,149 @@ export default function GerenciarGrupos() {
                            focus:outline-none w-40"
               />
             </div>
-
             <span className="text-xs text-muted-foreground font-mono">
               {gruposFiltrados.length} grupo{gruposFiltrados.length !== 1 ? 's' : ''}
             </span>
           </motion.div>
         )}
 
-        {/* Status da edição */}
+        {/* Barra de status da edição + filas de exclusão */}
         {grupos.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className={`flex items-center justify-between px-5 py-3 rounded-xl border transition-all
+            className="flex flex-col gap-3"
+          >
+            {/* Banner principal de edição */}
+            <div className={`flex items-center justify-between px-5 py-3 rounded-xl border transition-all
               ${editando
                 ? 'bg-primary/5 border-primary/30'
                 : lockEdicao && lockEdicao.avaliadorId !== avaliadorId
                   ? 'bg-destructive/5 border-destructive/30'
                   : 'bg-card border-border'
               }`}
-          >
-            <div className="flex items-center gap-3">
-              {editando ? (
-                <><Unlock size={16} className="text-primary" />
-                  <span className="text-sm font-mono text-primary">Modo de edição ativo — arraste membros entre grupos</span></>
-              ) : lockEdicao && lockEdicao.avaliadorId !== avaliadorId ? (
-                <><Lock size={16} className="text-destructive" />
-                  <span className="text-sm font-mono text-destructive">{lockEdicao.avaliadorNome} está editando agora</span></>
-              ) : (
-                <><Lock size={16} className="text-muted-foreground" />
-                  <span className="text-sm font-mono text-muted-foreground">Edição bloqueada — ative para reorganizar</span></>
+            >
+              <div className="flex items-center gap-3">
+                {editando ? (
+                  <><Unlock size={16} className="text-primary" />
+                    <span className="text-sm font-mono text-primary">
+                      Modo de edição ativo — arraste membros, renomeie ou exclua
+                    </span></>
+                ) : lockEdicao && lockEdicao.avaliadorId !== avaliadorId ? (
+                  <><Lock size={16} className="text-destructive" />
+                    <span className="text-sm font-mono text-destructive">{lockEdicao.avaliadorNome} está editando agora</span></>
+                ) : (
+                  <><Lock size={16} className="text-muted-foreground" />
+                    <span className="text-sm font-mono text-muted-foreground">Edição bloqueada — ative para reorganizar</span></>
+                )}
+              </div>
+              {(!lockEdicao || lockEdicao.avaliadorId === avaliadorId) && (
+                editando ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={cancelarEdicao} disabled={salvando}
+                      className="flex items-center gap-2 px-4 py-1.5 border border-border
+                                 text-muted-foreground hover:text-foreground hover:border-primary/40
+                                 font-mono text-xs tracking-widest rounded-lg transition-all uppercase
+                                 disabled:opacity-40">
+                      <X size={13} /> Cancelar
+                    </button>
+                    <button
+                      onClick={tentarConcluir}
+                      disabled={salvando || grupoInvalido}
+                      title={grupoInvalido ? 'Todos os grupos precisam ter entre 3 e 4 membros' : undefined}
+                      className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
+                                 tracking-widest rounded-lg transition-all uppercase
+                                 ${salvando || grupoInvalido
+                                   ? 'border-destructive/30 bg-destructive/5 text-destructive/40 cursor-not-allowed'
+                                   : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                                 }`}>
+                      <CheckCircle size={13} />
+                      {salvando ? 'Salvando...' : 'Concluir'}
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={ativarEdicao}
+                    className="flex items-center gap-2 px-4 py-1.5 border border-border
+                               text-muted-foreground hover:border-primary/40 hover:text-foreground
+                               font-mono text-xs tracking-widest rounded-lg transition-all uppercase">
+                    <Unlock size={13} /> Editar
+                  </button>
+                )
               )}
             </div>
-            {(!lockEdicao || lockEdicao.avaliadorId === avaliadorId) && (
-              editando ? (
-                <div className="flex items-center gap-2">
-                  <button onClick={cancelarEdicao} disabled={salvando}
-                    className="flex items-center gap-2 px-4 py-1.5 border border-border
-                               text-muted-foreground hover:text-foreground hover:border-primary/40
-                               font-mono text-xs tracking-widest rounded-lg transition-all uppercase
-                               disabled:opacity-40">
-                    <X size={13} /> Cancelar
-                  </button>
-                  <button
-                    onClick={concluirEdicao}
-                    disabled={salvando || grupos.some(g => g.membros.length < 3 || g.membros.length > 4)}
-                    title={grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
-                      ? 'Todos os grupos precisam ter entre 3 e 4 membros' : undefined}
-                    className={`flex items-center gap-2 px-4 py-1.5 border font-mono text-xs
-                               tracking-widest rounded-lg transition-all uppercase
-                               ${salvando || grupos.some(g => g.membros.length < 3 || g.membros.length > 4)
-                                 ? 'border-destructive/30 bg-destructive/5 text-destructive/40 cursor-not-allowed'
-                                 : 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
-                               }`}>
-                    <CheckCircle size={13} />
-                    {salvando ? 'Salvando...' : 'Concluir'}
-                  </button>
+
+            {/* Fila de exclusões pendentes */}
+            {editando && totalPendente > 0 && (
+              <div className="px-5 py-4 rounded-xl border border-destructive/30 bg-destructive/5">
+                <p className="text-xs font-mono text-destructive/60 uppercase tracking-widest mb-3">
+                  Aguardando exclusão ao concluir ({totalPendente}):
+                </p>
+                <div className="flex flex-col gap-2">
+
+                  {/* Grupos pendentes com seus membros */}
+                  {pendingGroups.map(pg => (
+                    <div key={pg.grupo.id}
+                      className="rounded-lg border border-destructive/20 bg-destructive/10 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Users size={13} className="text-destructive/70 flex-shrink-0" />
+                          <span className="text-sm font-mono text-destructive/90 font-semibold">
+                            {pg.grupo.nome}
+                          </span>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            — {pg.grupo.membros.length} membro{pg.grupo.membros.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => desfazerExclusaoGrupo(pg.grupo.id)}
+                          className="text-xs font-mono text-muted-foreground hover:text-foreground
+                                     px-2 py-0.5 rounded hover:bg-white/5 transition-all flex-shrink-0"
+                        >
+                          desfazer
+                        </button>
+                      </div>
+                      {pg.grupo.membros.length > 0 && (
+                        <div className="px-3 pb-2 flex flex-wrap gap-x-3 gap-y-0.5 border-t border-destructive/15 pt-1.5">
+                          {pg.grupo.membros.map(m => (
+                            <span key={m.id} className="text-xs font-mono text-muted-foreground">
+                              {m.login}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Usuários individuais pendentes */}
+                  {pendingUsers.map(p => (
+                    <div key={p.usuario.id}
+                      className="flex items-center justify-between px-3 py-1.5 rounded-lg
+                                 bg-destructive/10 border border-destructive/20">
+                      <div className="flex items-center gap-2">
+                        <Trash2 size={12} className="text-destructive/60 flex-shrink-0" />
+                        <span className="text-sm font-mono text-destructive/80">
+                          {p.usuario.login}
+                        </span>
+                        <span className="text-xs font-mono text-muted-foreground">
+                          ({p.grupoNome})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => desfazerExclusaoUsuario(p.usuario.id)}
+                        className="text-xs font-mono text-muted-foreground hover:text-foreground
+                                   px-2 py-0.5 rounded hover:bg-white/5 transition-all"
+                      >
+                        desfazer
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <button onClick={ativarEdicao}
-                  className="flex items-center gap-2 px-4 py-1.5 border border-border
-                             text-muted-foreground hover:border-primary/40 hover:text-foreground
-                             font-mono text-xs tracking-widest rounded-lg transition-all uppercase">
-                  <Unlock size={13} /> Editar
-                </button>
-              )
+              </div>
             )}
           </motion.div>
         )}
 
         {/* Estado vazio */}
-        {grupos.length === 0 && (
+        {grupos.length === 0 && !editando && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
             className="flex flex-col items-center justify-center gap-5 py-32"
@@ -565,6 +828,7 @@ export default function GerenciarGrupos() {
                   onTransferir={id => setModalTransferir(id)}
                   onExcluirGrupo={g => setGrupoParaExcluir(g)}
                   onExcluirMembro={(u, grupoNome) => setUsuarioParaExcluir({ usuario: u, grupoNome })}
+                  onRenomear={renomearGrupo}
                 />
               ))}
             </div>
@@ -614,6 +878,10 @@ export default function GerenciarGrupos() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {gerando && <ModalGerando />}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {modalCredenciais && (
           <ModalCredenciais
             credenciais={todasCredenciais}
@@ -634,8 +902,13 @@ export default function GerenciarGrupos() {
 
       <AnimatePresence>
         {modalTransferir && (
-          <ModalTransferir grupoId={modalTransferir} grupos={grupos}
-            onTransferir={transferirGrupo} onFechar={() => setModalTransferir(null)} />
+          <ModalTransferir
+            grupoId={modalTransferir}
+            grupos={grupos}
+            avaliadores={avaliadores}
+            onTransferir={transferirGrupo}
+            onFechar={() => setModalTransferir(null)}
+          />
         )}
       </AnimatePresence>
 
@@ -665,9 +938,24 @@ export default function GerenciarGrupos() {
 
       <AnimatePresence>
         {modalLog && (
-          <ModalLogExclusoesGrupos
-            logs={logs}
-            onFechar={() => setModalLog(false)}
+          <ModalLogExclusoesGrupos logs={logs} onFechar={() => setModalLog(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {modalConfirmarConclusao && (
+          <ModalConfirmarConclusao
+            grupos={pendingGroups.map(pg => ({
+              id: pg.grupo.id,
+              nome: pg.grupo.nome,
+              membros: pg.grupo.membros.map(m => ({ login: m.login })),
+            }))}
+            usuarios={pendingUsers.map(p => ({
+              login: p.usuario.login,
+              grupoNome: p.grupoNome,
+            }))}
+            onConfirmar={executarConclusao}
+            onCancelar={() => setModalConfirmarConclusao(false)}
           />
         )}
       </AnimatePresence>

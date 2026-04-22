@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from app.modelos.usuario import Usuario
 from app.modelos.grupo import Grupo, MembroGrupo
 from app.modelos.resposta import Resposta, ArquivoResposta
+from app.modelos.mensagem import Mensagem
 from app.modelos.log_exclusao_usuario import LogExclusaoUsuario
 from app.modelos.credencial_usuario import CredencialUsuario
 from app.core.seguranca import hash_senha
@@ -409,6 +410,12 @@ def excluir_usuario_permanente(
     db.add(log)
     db.flush()
 
+    # Mensagens enviadas pelo usuário no chat: anula o autor em vez de deletar
+    # (a FK não tem ON DELETE SET NULL no banco, então precisamos fazer manualmente)
+    db.query(Mensagem).filter(Mensagem.usuario_id == usuario_id).update(
+        {"usuario_id": None}, synchronize_session=False
+    )
+
     # Remove a credencial da tabela de credenciais
     credencial = db.query(CredencialUsuario).filter(
         CredencialUsuario.usuario_id == usuario_id
@@ -432,6 +439,9 @@ def excluir_grupo_permanente(
     db: Session,
 ) -> None:
     grupo = buscar_grupo(grupo_id, db)
+
+    # IDs dos membros — usados para limpar dados dos usuários junto com o grupo
+    membro_ids: list[int] = [int(m.usuario_id) for m in grupo.membros]  # type: ignore
 
     # Coleta IDs das respostas do grupo para buscar arquivos S3
     resposta_ids = [
@@ -469,7 +479,16 @@ def excluir_grupo_permanente(
     # Deleta arquivos S3 em lote (falha silenciosa)
     storage_servico.deletar_arquivos_lote(urls_s3)
 
-    # Deleta registros do banco em cascata
+    # Deleta mensagens do chat do grupo (FK sem CASCADE)
+    db.query(Mensagem).filter(Mensagem.grupo_id == grupo_id).delete(synchronize_session=False)
+
+    # Anula autor nas mensagens individuais dos membros (FK sem ON DELETE SET NULL)
+    if membro_ids:
+        db.query(Mensagem).filter(
+            Mensagem.usuario_id.in_(membro_ids)
+        ).update({"usuario_id": None}, synchronize_session=False)
+
+    # Deleta respostas e arquivos do grupo
     if resposta_ids:
         db.query(ArquivoResposta).filter(
             ArquivoResposta.resposta_id.in_(resposta_ids)
@@ -478,9 +497,19 @@ def excluir_grupo_permanente(
             Resposta.grupo_id == grupo_id
         ).delete(synchronize_session=False)
 
+    # Remove membros do grupo e deleta os usuários — o log acima registra cada um como excluído,
+    # então os registros de Usuario e CredencialUsuario também precisam sair do banco.
     db.query(MembroGrupo).filter(
         MembroGrupo.grupo_id == grupo_id
     ).delete(synchronize_session=False)
+
+    if membro_ids:
+        db.query(CredencialUsuario).filter(
+            CredencialUsuario.usuario_id.in_(membro_ids)
+        ).delete(synchronize_session=False)
+        db.query(Usuario).filter(
+            Usuario.id.in_(membro_ids)
+        ).delete(synchronize_session=False)
 
     db.delete(grupo)
     db.commit()
@@ -549,6 +578,17 @@ def listar_credenciais(db: Session) -> ListarCredenciaisOutput:
         ],
         ultima_atualizacao=ultima,
     )
+
+
+def renomear_grupo_avaliador(grupo_id: int, nome_custom: str, db: Session) -> Grupo:
+    grupo = buscar_grupo(grupo_id, db)
+    nome = nome_custom.strip()
+    if len(nome) < 2:
+        raise HTTPException(status_code=400, detail="Nome muito curto (mínimo 2 caracteres)")
+    grupo.nome_custom = nome  # type: ignore
+    db.commit()
+    db.refresh(grupo)
+    return grupo
 
 
 def listar_log_exclusoes_usuarios(db: Session) -> list[LogExclusaoUsuario]:

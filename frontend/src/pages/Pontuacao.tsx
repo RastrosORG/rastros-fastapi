@@ -84,9 +84,11 @@ export default function Pontuacao() {
   const [ranking, setRanking] = useState<GrupoPontuacao[]>([])
   const [atividadeRaw, setAtividadeRaw] = useState<IntervaloDados[]>([])
   const [evolucaoRaw, setEvolucaoRaw] = useState<IntervaloDados[]>([])
+  const [desempenhoRaw, setDesempenhoRaw] = useState<IntervaloDados[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(false)
   const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([])
+  const [gruposSelDesempenho, setGruposSelDesempenho] = useState<string[]>([])
 
   useEffect(() => {
     listarRanking()
@@ -94,8 +96,10 @@ export default function Pontuacao() {
         setRanking(dados.ranking)
         setAtividadeRaw(dados.atividade)
         setEvolucaoRaw(dados.evolucao)
-        // Pré-seleciona os 3 primeiros no filtro de atividade
-        setGruposSelecionados(dados.ranking.slice(0, 3).map(g => g.nome))
+        setDesempenhoRaw(dados.desempenho)
+        const top3nomes = dados.ranking.slice(0, 3).map(g => g.nome)
+        setGruposSelecionados(top3nomes)
+        setGruposSelDesempenho(top3nomes)
       })
       .catch(() => setErro(true))
       .finally(() => setCarregando(false))
@@ -106,9 +110,10 @@ export default function Pontuacao() {
           setRanking(dados.ranking)
           setAtividadeRaw(dados.atividade)
           setEvolucaoRaw(dados.evolucao)
-          // Mantém apenas seleções cujo nome ainda existe (cobre renomeações)
+          setDesempenhoRaw(dados.desempenho)
           const novosNomes = new Set(dados.ranking.map(g => g.nome))
           setGruposSelecionados(prev => prev.filter(n => novosNomes.has(n)))
+          setGruposSelDesempenho(prev => prev.filter(n => novosNomes.has(n)))
         })
         .catch(() => { /* silencia erros de rede no poll silencioso */ })
     }, 20000)
@@ -123,11 +128,20 @@ export default function Pontuacao() {
     )
   }
 
+  function toggleGrupoDesempenho(nome: string) {
+    setGruposSelDesempenho(prev =>
+      prev.includes(nome)
+        ? prev.length === 1 ? prev : prev.filter(g => g !== nome)
+        : [...prev, nome]
+    )
+  }
+
   const top3     = ranking.slice(0, 3)
   const maxPontos = Math.max(ranking[0]?.pontos ?? 0, 1)
 
-  const atividadeDados = useMemo(() => achatar(atividadeRaw), [atividadeRaw])
-  const evolucaoDados  = useMemo(() => achatar(evolucaoRaw),  [evolucaoRaw])
+  const atividadeDados  = useMemo(() => achatar(atividadeRaw),  [atividadeRaw])
+  const evolucaoDados   = useMemo(() => achatar(evolucaoRaw),   [evolucaoRaw])
+  const desempenhoDados = useMemo(() => achatar(desempenhoRaw), [desempenhoRaw])
   const radarDados     = useMemo(() => computarRadar(top3, maxPontos), [top3, maxPontos])
   const nomesTodosGrupos = useMemo(() => ranking.map(g => g.nome), [ranking])
   const larguraScroll    = Math.max(ranking.length * 80, 900)
@@ -389,6 +403,82 @@ export default function Pontuacao() {
 
               <div className="flex flex-wrap gap-4">
                 {gruposSelecionados.map(nome => {
+                  const i = nomesTodosGrupos.indexOf(nome)
+                  return (
+                    <div key={nome} className="flex items-center gap-1.5">
+                      <div className="w-4 h-0.5 rounded-full"
+                        style={{ backgroundColor: coresGrupos[i % coresGrupos.length] }} />
+                      <span className="text-xs font-mono text-muted-foreground">{nome}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* DESEMPENHO POR TEMPO */}
+          {desempenhoDados.length > 1 && (
+            <motion.div variants={fadeUp} custom={8} initial="hidden" animate="show"
+              className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">
+                    Desempenho por Tempo
+                  </p>
+                  <p className="text-xs font-mono text-muted-foreground/40 mt-1">
+                    Pontos acumulados pelo horário de envio (intervalos de 10 min)
+                  </p>
+                </div>
+                <p className="text-xs font-mono text-muted-foreground/40">Selecione os grupos para comparar</p>
+              </div>
+
+              {/* Filtro */}
+              <div className="flex flex-wrap gap-2">
+                {nomesTodosGrupos.map((nome, i) => {
+                  const selecionado = gruposSelDesempenho.includes(nome)
+                  const cor = coresGrupos[i % coresGrupos.length]
+                  return (
+                    <button key={nome} onClick={() => toggleGrupoDesempenho(nome)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-mono transition-all duration-200"
+                      style={{
+                        borderColor: selecionado ? cor : 'rgba(255,255,255,0.1)',
+                        backgroundColor: selecionado ? `${cor}20` : 'transparent',
+                        color: selecionado ? cor : '#6b6875',
+                      }}>
+                      <div className="w-2 h-2 rounded-full transition-all"
+                        style={{ backgroundColor: selecionado ? cor : '#6b6875' }} />
+                      {nome}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Gráfico */}
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={desempenhoDados} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="tempo" tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
+                    axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
+                    axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={tooltipStyle}
+                    formatter={(value, name) => [`${value} pts`, String(name)]} />
+                  {nomesTodosGrupos.map((nome, i) =>
+                    gruposSelDesempenho.includes(nome) ? (
+                      <Line key={nome} type="monotone" dataKey={nome}
+                        stroke={coresGrupos[i % coresGrupos.length]}
+                        strokeWidth={2}
+                        dot={{ fill: coresGrupos[i % coresGrupos.length], r: 4 }}
+                        activeDot={{ r: 6 }}
+                        animationDuration={400}
+                      />
+                    ) : null
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+
+              <div className="flex flex-wrap gap-4">
+                {gruposSelDesempenho.map(nome => {
                   const i = nomesTodosGrupos.indexOf(nome)
                   return (
                     <div key={nome} className="flex items-center gap-1.5">

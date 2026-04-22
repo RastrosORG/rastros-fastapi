@@ -6,6 +6,7 @@ import ListaGruposChat, { type GrupoChat } from '../components/chat/ListaGruposC
 import AreaChat from '../components/chat/AreaChat'
 import { listarGruposChat } from '../api/chatApi'
 import { useChatGrupoAvaliador, useChatNotificacoes } from '../hooks/useChat'
+import { useChatNotifStore } from '../store/chatNotifStore'
 
 // Adapta GrupoChat (API) para o formato esperado por ListaGruposChat (string id)
 function mapGrupo(g: { id: number; nome: string; chamou_avaliador: boolean; ultima_mensagem: string; ultima_hora: string }): GrupoChat {
@@ -23,6 +24,9 @@ export default function ChatAvaliador() {
   const [grupos, setGrupos] = useState<GrupoChat[]>([])
   const [carregando, setCarregando] = useState(true)
   const [grupoSelecionado, setGrupoSelecionado] = useState<string | null>(null)
+
+  const clearNotif = useChatNotifStore(s => s.clear)
+  useEffect(() => { clearNotif() }, [clearNotif])
 
   // Converte o id selecionado para number para o hook
   const grupoIdNum = grupoSelecionado ? parseInt(grupoSelecionado) : null

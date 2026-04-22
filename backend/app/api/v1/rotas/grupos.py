@@ -102,6 +102,16 @@ def buscar(
 ):
     return grupo_servico.buscar_grupo(grupo_id, db)
 
+@router.patch("/{grupo_id}/renomear", response_model=GrupoOutput)
+def renomear_grupo(
+    grupo_id: int,
+    dados: AtualizarNomeGrupoInput,
+    db: Session = Depends(get_db),
+    _=Depends(get_avaliador)
+):
+    return grupo_servico.renomear_grupo_avaliador(grupo_id, dados.nome_custom, db)
+
+
 @router.patch("/{grupo_id}/transferir/{avaliador_id}", response_model=GrupoOutput)
 def transferir(
     grupo_id: int,

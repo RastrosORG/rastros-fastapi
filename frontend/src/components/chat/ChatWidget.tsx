@@ -44,9 +44,15 @@ export default function ChatWidget() {
 
   const { mensagens, avaliadorPresente, chamouAvaliador, enviar, chamar, trocarGrupoId } = useChatGrupo(grupoId)
 
-  // Busca o grupo do usuário na montagem e re-verifica a cada 20s
-  // para detectar mudanças de nome, membros ou troca de grupo
+  // Fetch único no mount — inicializa grupoId para o WS conectar
   useEffect(() => {
+    meuGrupo().then(setGrupo).catch(() => {})
+  }, [])
+
+  // Poll de membros só enquanto o chat está aberto — detecta entradas/saídas
+  // e injeta mensagens de sistema. Quando fechado não há nada para exibir.
+  useEffect(() => {
+    if (!aberto) return
     function atualizar() {
       meuGrupo()
         .then(g => {
@@ -64,10 +70,10 @@ export default function ChatWidget() {
         })
         .catch(() => {})
     }
-    atualizar()
+    atualizar() // atualiza ao abrir o chat
     const intervalo = setInterval(atualizar, 20000)
     return () => clearInterval(intervalo)
-  }, [])
+  }, [aberto])
 
   // Recebeu evento trocar_grupo via WS — salva o nome do grupo destino antes de trocar
   useEffect(() => {

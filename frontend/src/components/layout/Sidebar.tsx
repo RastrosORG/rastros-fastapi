@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Home, Users, Trophy, FileText, MessageSquare, LogOut, ClipboardList } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { useChatNotifStore } from '../../store/chatNotifStore'
 
 const navUsuario = [
   { to: '/home', icon: Home, label: 'Home' },
@@ -23,6 +24,7 @@ export default function Sidebar() {
   const logout = useAuthStore(state => state.logout)
   const navigate = useNavigate()
   const nav = usuario?.is_avaliador ? navAvaliador : navUsuario
+  const chatPendente = useChatNotifStore(s => s.pendingCount > 0)
 
   function handleLogout() {
     logout()
@@ -43,7 +45,7 @@ export default function Sidebar() {
         {nav.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} title={label}
             className={({ isActive }) =>
-              `p-3 rounded-lg transition-all duration-200 ${
+              `relative p-3 rounded-lg transition-all duration-200 ${
                 isActive
                   ? 'text-primary bg-primary/10'
                   : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent'
@@ -51,6 +53,9 @@ export default function Sidebar() {
             }
           >
             <Icon size={20} />
+            {to === '/chat' && chatPendente && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+            )}
           </NavLink>
         ))}
       </nav>

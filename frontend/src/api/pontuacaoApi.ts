@@ -19,6 +19,7 @@ export interface RankingCompleto {
   ranking: GrupoPontuacao[]
   atividade: IntervaloDados[]
   evolucao: IntervaloDados[]
+  desempenho: IntervaloDados[]
 }
 
 export async function listarRanking(): Promise<RankingCompleto> {

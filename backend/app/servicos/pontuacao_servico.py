@@ -34,20 +34,24 @@ def listar_ranking_completo(db: Session) -> dict:
     todos_nomes = list(nomes.values())
     atividade_buckets: dict = defaultdict(lambda: defaultdict(int))
     evolucao_buckets: dict = defaultdict(lambda: defaultdict(int))
+    desempenho_buckets: dict = defaultdict(lambda: defaultdict(int))
     max_bucket = 0
 
     if inicio:
         for g in grupos:
             nome = nomes[g.id]
             for r in g.respostas:
-                # Atividade: intervalo de criação da resposta
                 delta = (r.criado_em - inicio).total_seconds() / 60
                 if delta >= 0:
                     bucket = int(delta // 10) * 10
                     max_bucket = max(max_bucket, bucket)
+                    # Atividade: contagem de envios por intervalo
                     atividade_buckets[bucket][nome] += 1
+                    # Desempenho: pontos obtidos agrupados pelo momento do envio
+                    if r.pontos > 0:
+                        desempenho_buckets[bucket][nome] += r.pontos
 
-                # Evolução: intervalo da avaliação (só respostas pontuadas)
+                # Evolução: pontos pelo momento da avaliação
                 if r.avaliado_em and r.pontos > 0:
                     delta_av = (r.avaliado_em - inicio).total_seconds() / 60
                     if delta_av >= 0:
@@ -73,8 +77,17 @@ def listar_ranking_completo(db: Session) -> dict:
             acum_ev[nome] += evolucao_buckets[b].get(nome, 0)
         evolucao_result.append({"rotulo": f"{b}min", "dados": dict(acum_ev)})
 
+    # Desempenho acumulado (pontos por hora de envio)
+    desempenho_result = []
+    acum_de = {nome: 0 for nome in todos_nomes}
+    for b in buckets:
+        for nome in todos_nomes:
+            acum_de[nome] += desempenho_buckets[b].get(nome, 0)
+        desempenho_result.append({"rotulo": f"{b}min", "dados": dict(acum_de)})
+
     return {
         "ranking": ranking,
         "atividade": atividade_result,
         "evolucao": evolucao_result,
+        "desempenho": desempenho_result,
     }
