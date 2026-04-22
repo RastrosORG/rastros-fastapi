@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react'
 export interface Usuario {
   id: string
   login: string
+  nome_custom?: string | null
   senha: string
   grupoId: string
 }
@@ -39,7 +40,9 @@ export default function MembroCard({ usuario, editando, onExcluir }: Props) {
             {usuario.login.replace('user', '')}
           </span>
         </div>
-        <span className="text-sm font-mono text-foreground">{usuario.login}</span>
+        <span className="text-sm font-mono text-foreground">
+          {usuario.nome_custom ? `${usuario.nome_custom} (${usuario.login})` : usuario.login}
+        </span>
       </div>
 
       {editando && (

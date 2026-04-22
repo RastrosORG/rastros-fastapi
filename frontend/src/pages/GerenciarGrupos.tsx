@@ -117,6 +117,7 @@ export default function GerenciarGrupos() {
         membros: g.membros.map(m => ({
           id: m.usuario.id.toString(),
           login: m.usuario.login,
+          nome_custom: m.usuario.nome_custom,
           senha: '',
           grupoId: g.id.toString(),
         }))
@@ -278,7 +279,7 @@ export default function GerenciarGrupos() {
     if (!over || active.id === over.id) return
     setGrupos(prev => {
       const origem = prev.find(g => g.membros.some(m => m.id === active.id))
-      const destino = prev.find(g => g.membros.some(m => m.id === over.id) || g.id === over.id)
+      const destino = prev.find(g => g.membros.some(m => m.id === over.id) || `grupo-${g.id}` === over.id)
       if (!origem || !destino || origem.id === destino.id) return prev
       const membro = origem.membros.find(m => m.id === active.id)!
       return prev.map(g => {
@@ -577,7 +578,9 @@ export default function GerenciarGrupos() {
                       {usuarioAtivo.login.replace('user', '')}
                     </span>
                   </div>
-                  <span className="text-sm font-mono text-foreground">{usuarioAtivo.login}</span>
+                  <span className="text-sm font-mono text-foreground">
+                    {usuarioAtivo.nome_custom ? `${usuarioAtivo.nome_custom} (${usuarioAtivo.login})` : usuarioAtivo.login}
+                  </span>
                 </div>
               )}
             </DragOverlay>

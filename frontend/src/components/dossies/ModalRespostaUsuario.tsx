@@ -1,15 +1,7 @@
 import { X, Upload, FileText } from 'lucide-react'
 import { motion } from 'framer-motion'
-
-const categorias = [
-  { id: 'familia', label: 'Família', pontos: 10 },
-  { id: 'info_basicas', label: 'Informações Básicas', pontos: 15 },
-  { id: 'info_avancadas', label: 'Informações Avançadas', pontos: 30 },
-  { id: 'dia_desaparecimento', label: 'Dia do Desaparecimento', pontos: 25 },
-  { id: 'atividades_pos', label: 'Atividades Pós-Desaparecimento', pontos: 35 },
-  { id: 'darkweb', label: 'Dark Web', pontos: 50 },
-  { id: 'localizacao', label: 'Localização', pontos: 60 },
-]
+import { CATEGORIAS } from '../../lib/categorias'
+import InfoCategoria from '../ui/InfoCategoria'
 
 interface FormData {
   titulo: string
@@ -107,7 +99,7 @@ export default function ModalRespostaUsuario({
                 Categoria <span className="text-primary">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {categorias.map(cat => (
+                {CATEGORIAS.map(cat => (
                   <button key={cat.id}
                     onClick={() => { onChangeForm({ ...form, categoria: cat.id }); onLimparErro('categoria') }}
                     className={`flex items-center justify-between px-3 py-2 rounded-lg border
@@ -116,8 +108,11 @@ export default function ModalRespostaUsuario({
                                  ? 'border-primary bg-primary/10 text-primary'
                                  : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
                                }`}>
-                    <span>{cat.label}</span>
-                    <span className={`text-xs ${form.categoria === cat.id ? 'text-primary' : 'text-muted-foreground/50'}`}>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="truncate">{cat.label}</span>
+                      <InfoCategoria categoria={cat} />
+                    </div>
+                    <span className={`text-xs shrink-0 ml-2 ${form.categoria === cat.id ? 'text-primary' : 'text-muted-foreground/50'}`}>
                       {cat.pontos}pts
                     </span>
                   </button>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { MessageSquare, X, Send, Bell, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { meuGrupo } from '../../api/gruposApi'
@@ -7,6 +7,8 @@ import type { MensagemChat } from '../../api/chatApi'
 import { useChatGrupo } from '../../hooks/useChat'
 import { useAuthStore } from '../../store/authStore'
 import { CORES_CHAT } from '../../lib/coresMembros'
+
+type LocalEntry = { msg: MensagemChat; insertAfter: number }
 
 const MIN_W = 280
 const MIN_H = 300
@@ -21,7 +23,7 @@ export default function ChatWidget() {
   const [input, setInput] = useState('')
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H })
 
-  const [mensagensLocais, setMensagensLocais] = useState<MensagemChat[]>([])
+  const [locais, setLocais] = useState<LocalEntry[]>([])
 
   const resizing = useRef(false)
   const resizeStart = useRef({ x: 0, y: 0, w: DEFAULT_W, h: DEFAULT_H })
@@ -32,6 +34,10 @@ export default function ChatWidget() {
   // Guarda snapshot dos membros do turno anterior para detectar entradas/saídas
   const grupoAnteriorRef = useRef<GrupoAPI | null>(null)
   const localIdRef = useRef(-1)
+  // Quantidade de mensagens reais no momento em que uma entrada local é criada
+  const mensagensLenRef = useRef(0)
+  // Nome do grupo destino quando o usuário foi realocado via WS (lido no effect de grupoId)
+  const pendingRealocacaoRef = useRef<string | null>(null)
 
   const usuario = useAuthStore(s => s.usuario)
   const grupoId = grupo?.id ?? null
@@ -63,61 +69,83 @@ export default function ChatWidget() {
     return () => clearInterval(intervalo)
   }, [])
 
-  // Recebeu evento trocar_grupo via WS — força atualização imediata sem esperar o poll de 20s
+  // Recebeu evento trocar_grupo via WS — salva o nome do grupo destino antes de trocar
   useEffect(() => {
     if (trocarGrupoId === null) return
-    meuGrupo().then(g => setGrupo(g)).catch(() => {})
+    meuGrupo().then(g => {
+      pendingRealocacaoRef.current = g.nome_custom || g.nome
+      setGrupo(g)
+    }).catch(() => {})
   }, [trocarGrupoId])
 
-  // Detecta troca de grupo (limpa mensagens locais) e mudanças de membros (injeta avisos)
+  // Sincroniza ref com a quantidade atual de mensagens reais
+  useEffect(() => {
+    mensagensLenRef.current = mensagens.length
+  }, [mensagens])
+
+  // Quando o grupo muda de id: limpa locais e injeta aviso de realocação se houver
+  useEffect(() => {
+    const nome = pendingRealocacaoRef.current
+    pendingRealocacaoRef.current = null
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    setTimeout(() => {
+      setLocais(nome ? [{
+        msg: { id: localIdRef.current--, texto: `Você foi realocado para o grupo ${nome}`, autor: '', hora, tipo: 'sistema', usuario_id: null },
+        insertAfter: 0,
+      }] : [])
+    }, 0)
+  }, [grupoId])
+
+  // Detecta mudanças de membros no mesmo grupo e injeta avisos na posição correta
   useEffect(() => {
     const anterior = grupoAnteriorRef.current
+    grupoAnteriorRef.current = grupo
 
-    if (!grupo) {
-      grupoAnteriorRef.current = null
-      setTimeout(() => setMensagensLocais([]), 0)
-      return
-    }
+    // Ignora se não há grupo ou se o grupo mudou de id (tratado no effect de grupoId)
+    if (!grupo || !anterior || anterior.id !== grupo.id) return
 
-    if (!anterior || anterior.id !== grupo.id) {
-      // Trocou de grupo — limpa mensagens locais do grupo anterior
-      grupoAnteriorRef.current = grupo
-      setTimeout(() => setMensagensLocais([]), 0)
-      return
-    }
-
-    // Mesmo grupo — verifica se membros mudaram
     const idsAntes = new Set(anterior.membros.map(m => m.usuario.id))
     const idsAgora = new Set(grupo.membros.map(m => m.usuario.id))
-    const novas: MensagemChat[] = []
+    const novas: LocalEntry[] = []
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    // Captura a posição atual para que a mensagem fique entre as mensagens existentes
+    // e as que chegarem depois
+    const insertAfter = mensagensLenRef.current
 
     for (const m of anterior.membros) {
       if (!idsAgora.has(m.usuario.id)) {
         novas.push({
-          id: localIdRef.current--,
-          texto: `${m.usuario.nome_custom || m.usuario.login} saiu do grupo`,
-          autor: '', hora, tipo: 'sistema', usuario_id: null,
+          msg: { id: localIdRef.current--, texto: `${m.usuario.nome_custom || m.usuario.login} saiu do grupo`, autor: '', hora, tipo: 'sistema', usuario_id: null },
+          insertAfter,
         })
       }
     }
     for (const m of grupo.membros) {
       if (!idsAntes.has(m.usuario.id)) {
         novas.push({
-          id: localIdRef.current--,
-          texto: `${m.usuario.nome_custom || m.usuario.login} entrou no grupo`,
-          autor: '', hora, tipo: 'sistema', usuario_id: null,
+          msg: { id: localIdRef.current--, texto: `${m.usuario.nome_custom || m.usuario.login} entrou no grupo`, autor: '', hora, tipo: 'sistema', usuario_id: null },
+          insertAfter,
         })
       }
     }
 
-    grupoAnteriorRef.current = grupo
-    if (novas.length > 0) setTimeout(() => setMensagensLocais(prev => [...prev, ...novas]), 0)
+    if (novas.length > 0) setTimeout(() => setLocais(prev => [...prev, ...novas]), 0)
   }, [grupo])
+
+  // Mescla mensagens reais e locais mantendo a ordem cronológica correta
+  const mensagensOrdenadas = useMemo(() => {
+    const result: MensagemChat[] = []
+    for (let i = 0; i <= mensagens.length; i++) {
+      locais.filter(l => l.insertAfter === i).forEach(l => result.push(l.msg))
+      if (i < mensagens.length) result.push(mensagens[i])
+    }
+    locais.filter(l => l.insertAfter === -1).forEach(l => result.push(l.msg))
+    return result
+  }, [mensagens, locais])
 
   useEffect(() => {
     if (aberto) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensagens, mensagensLocais, aberto])
+  }, [mensagensOrdenadas, aberto])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -251,7 +279,7 @@ export default function ChatWidget() {
                   <div className="flex-1 h-px bg-primary/20" />
                 </div>
               )}
-              {[...mensagens, ...mensagensLocais].map((m) => {
+              {mensagensOrdenadas.map((m) => {
                 const isAvaliador = m.tipo === 'avaliador'
                 const isSistema = m.tipo === 'sistema'
                 const proprio = m.tipo === 'grupo' && m.usuario_id === usuario?.id

@@ -10,15 +10,18 @@ from app.modelos.dossie import Dossie
 from app.servicos import cronometro_servico
 from app.servicos.storage_servico import upload_arquivo
 
-# Pontuação por categoria — espelho do frontend
+# Pontuação por categoria — espelho do frontend (src/lib/categorias.ts)
 PONTOS_CATEGORIA = {
-    'familia': 10,
-    'info_basicas': 15,
-    'info_avancadas': 30,
-    'dia_desaparecimento': 25,
-    'atividades_pos': 35,
-    'darkweb': 50,
-    'localizacao': 60,
+    'noticias': 5,
+    'amigos': 10,
+    'empregos': 15,
+    'familia': 20,
+    'info_basicas': 50,
+    'info_avancadas': 100,
+    'dia_desaparecimento': 300,
+    'atividades_pos': 700,
+    'darkweb': 1000,
+    'localizacao': 5000,
 }
 
 

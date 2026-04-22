@@ -1,4 +1,6 @@
 import { Star, Clock, CheckCircle, XCircle, CheckCheck, Paperclip, MessageSquare } from 'lucide-react'
+import { CATEGORIAS } from '../../lib/categorias'
+import InfoCategoria from '../ui/InfoCategoria'
 
 export type StatusResposta = 'pendente' | 'aprovada' | 'aprovada_parcial' | 'rejeitada'
 
@@ -27,15 +29,8 @@ export interface Resposta {
   }
 }
 
-export const categorias = [
-  { id: 'familia', label: 'Família', pontos: 10 },
-  { id: 'info_basicas', label: 'Informações Básicas', pontos: 15 },
-  { id: 'info_avancadas', label: 'Informações Avançadas', pontos: 30 },
-  { id: 'dia_desaparecimento', label: 'Dia do Desaparecimento', pontos: 25 },
-  { id: 'atividades_pos', label: 'Atividades Pós-Desaparecimento', pontos: 35 },
-  { id: 'darkweb', label: 'Dark Web', pontos: 50 },
-  { id: 'localizacao', label: 'Localização', pontos: 60 },
-]
+// Re-exportado para compatibilidade com ModalAvaliar e ModalVerAvaliada
+export const categorias = CATEGORIAS
 
 export const statusConfig = {
   pendente: { label: 'Pendente', icon: Clock, className: 'text-yellow-400 border-yellow-400/30 bg-yellow-400/10' },
@@ -54,6 +49,7 @@ interface Props {
 export default function RespostaCard({ resposta: r, favoritada, onAbrir, onToggleFavorito }: Props) {
   const status = statusConfig[r.status]
   const StatusIcon = status.icon
+  const cat = CATEGORIAS.find(c => c.id === r.categoria)
 
   return (
     <button onClick={onAbrir}
@@ -66,9 +62,12 @@ export default function RespostaCard({ resposta: r, favoritada, onAbrir, onToggl
           {r.titulo}
         </span>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-primary/60">
-            {categorias.find(c => c.id === r.categoria)?.label ?? r.categoria}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-mono text-primary/60">
+              {cat?.label ?? r.categoria}
+            </span>
+            {cat && <InfoCategoria categoria={cat} />}
+          </div>
           <span className="text-xs font-mono text-muted-foreground/50">·</span>
           <span className="text-xs font-mono text-muted-foreground/60">{r.dataEnvio}</span>
         </div>

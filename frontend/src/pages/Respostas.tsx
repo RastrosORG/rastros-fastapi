@@ -5,6 +5,8 @@ import type { Variants } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'
 import { listarMinhasRespostas } from '../api/respostasApi'
 import type { RespostaAPI, DossieRespostasAPI } from '../api/respostasApi'
+import { CATEGORIAS, labelCategoria } from '../lib/categorias'
+import InfoCategoria from '../components/ui/InfoCategoria'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -15,19 +17,6 @@ const fadeUp: Variants = {
   }),
 }
 
-const categorias = [
-  { id: 'familia', label: 'Família' },
-  { id: 'info_basicas', label: 'Informações Básicas' },
-  { id: 'info_avancadas', label: 'Informações Avançadas' },
-  { id: 'dia_desaparecimento', label: 'Dia do Desaparecimento' },
-  { id: 'atividades_pos', label: 'Atividades Pós-Desaparecimento' },
-  { id: 'darkweb', label: 'Dark Web' },
-  { id: 'localizacao', label: 'Localização' },
-]
-
-function labelCategoria(id: string): string {
-  return categorias.find((c) => c.id === id)?.label ?? id
-}
 
 function formatarData(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -387,9 +376,15 @@ export default function Respostas() {
 
                   <div className="flex flex-col gap-1.5">
                     <p className="text-xs font-mono text-foreground/60 tracking-widest uppercase">Categoria</p>
-                    <span className="text-primary font-mono text-sm">
-                      {labelCategoria(modalResposta.categoria)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-primary font-mono text-sm">
+                        {labelCategoria(modalResposta.categoria)}
+                      </span>
+                      {(() => {
+                        const cat = CATEGORIAS.find(c => c.id === modalResposta.categoria)
+                        return cat ? <InfoCategoria categoria={cat} /> : null
+                      })()}
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">

@@ -1,4 +1,5 @@
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
 import { ArrowRightLeft, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import MembroCard from './MembroCard'
@@ -39,6 +40,13 @@ export default function GrupoCard({
   const tamanho = grupo.membros.length
   const tamanhoOk = tamanho === 3 || tamanho === 4
   const invalido = editando && !tamanhoOk
+
+  // Registra o card como droppable para que o avaliador possa soltar membros
+  // diretamente no grupo, sem precisar mirar em um membro específico
+  const { setNodeRef: setGrupoRef, isOver } = useDroppable({
+    id: `grupo-${grupo.id}`,
+    disabled: !editando,
+  })
 
   return (
     <motion.div
@@ -89,7 +97,7 @@ export default function GrupoCard({
       </div>
 
       {/* Membros */}
-      <div className="p-3 flex flex-col gap-1.5">
+      <div ref={setGrupoRef} className={`p-3 flex flex-col gap-1.5 rounded-b-xl transition-colors ${isOver && editando ? 'bg-primary/5' : ''}`}>
         <SortableContext items={grupo.membros.map(m => m.id)} strategy={verticalListSortingStrategy}>
           {grupo.membros.map(m => (
             <MembroCard
