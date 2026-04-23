@@ -11,7 +11,6 @@ export interface DossieAPI {
   foto_url?: string
   ativo: boolean
   arquivos: { id: number; nome_arquivo: string; url_s3: string }[]
-  total_respostas: number
 }
 
 export interface DossieCreateInput {

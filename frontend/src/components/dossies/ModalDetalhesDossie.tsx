@@ -31,7 +31,6 @@ interface Dossie {
   arquivos: ArquivoDossie[]
   arquivosAvaliador: string[]
   equipes: string[]
-  respostas: number
   status: 'ativo' | 'arquivado'
 }
 
@@ -221,11 +220,6 @@ export default function ModalDetalhesDossie({ dossie: d, onFechar, onAbrirMapa, 
               </div>
             )}
 
-            {/* Respostas recebidas */}
-            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-              <MessageSquare size={13} className="text-primary/60" />
-              <span>{d.respostas} resposta{d.respostas !== 1 ? 's' : ''} recebida{d.respostas !== 1 ? 's' : ''}</span>
-            </div>
           </div>
         </div>
       </motion.div>

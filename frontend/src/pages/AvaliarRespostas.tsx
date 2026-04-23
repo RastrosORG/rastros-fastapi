@@ -1,6 +1,6 @@
 import { useState, useMemo, lazy, Suspense, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Star, Clock, CheckCircle, ChevronRight, Search } from 'lucide-react'
+import { Star, Clock, CheckCircle, ChevronRight, Search, AlertTriangle } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 
 import GrupoSeletor from '../components/avaliar/GrupoSeletor'
@@ -70,6 +70,7 @@ export default function AvaliarRespostas() {
   const [modalAvaliar, setModalAvaliar] = useState<Resposta | null>(null)
   const [modalVer, setModalVer] = useState<Resposta | null>(null)
   const [respostas, setRespostas] = useState<Record<string, Resposta[]>>({})
+  const [erroAvaliacao, setErroAvaliacao] = useState<string | null>(null)
 
   // ── Carrega grupos na montagem ────────────────────────────────
   useEffect(() => {
@@ -195,7 +196,7 @@ export default function AvaliarRespostas() {
       comentario: string
       categoriaNova?: string
     }
-  ) {
+  ): Promise<boolean> {
     try {
       const atualizada = await avaliarRespostaAPI(respostaId, {
         tipo: resultado.tipo,
@@ -208,8 +209,11 @@ export default function AvaliarRespostas() {
           r.id === respostaId ? mapRespostaAPI(atualizada) : r
         ),
       }))
+      return true
     } catch {
-      // mantém estado anterior em caso de erro
+      setErroAvaliacao('Erro ao salvar avaliação. Tente novamente.')
+      setTimeout(() => setErroAvaliacao(null), 4000)
+      return false
     }
   }
 
@@ -447,9 +451,9 @@ export default function AvaliarRespostas() {
             <ModalAvaliar
               resposta={modalAvaliar}
               onFechar={() => setModalAvaliar(null)}
-              onAvaliar={(id, resultado) => {
-                avaliar(grupoSelecionado, id, resultado)
-                setModalAvaliar(null)
+              onAvaliar={async (id, resultado) => {
+                const ok = await avaliar(grupoSelecionado, id, resultado)
+                if (ok) setModalAvaliar(null)
               }}
             />
           )}
@@ -460,14 +464,30 @@ export default function AvaliarRespostas() {
             <ModalVerAvaliada
               resposta={modalVer}
               onFechar={() => setModalVer(null)}
-              onCorrigir={(id, resultado) => {
-                avaliar(grupoSelecionado, id, resultado)
-                setModalVer(null)
+              onCorrigir={async (id, resultado) => {
+                const ok = await avaliar(grupoSelecionado, id, resultado)
+                if (ok) setModalVer(null)
               }}
             />
           )}
         </AnimatePresence>
       </Suspense>
+
+      <AnimatePresence>
+        {erroAvaliacao && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3
+                       bg-red-950 border border-red-500/50 text-red-400
+                       px-5 py-3 rounded-xl shadow-2xl font-mono text-sm"
+          >
+            <AlertTriangle size={16} />
+            {erroAvaliacao}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

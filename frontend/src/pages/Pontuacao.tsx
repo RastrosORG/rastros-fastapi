@@ -46,12 +46,10 @@ const tooltipStyle = {
   fontSize: '12px',
 }
 
-// Achata { rotulo, dados } para o formato flat que o Recharts espera
 function achatar(intervalos: IntervaloDados[]): Record<string, unknown>[] {
   return intervalos.map(({ rotulo, dados }) => ({ tempo: rotulo, ...dados }))
 }
 
-// Computa radarDados a partir do top 3 do ranking
 function computarRadar(top3: GrupoPontuacao[], maxPontos: number) {
   const norm = (v: number, max: number) => max > 0 ? Math.round((v / max) * 10) : 0
   return [
@@ -82,23 +80,17 @@ function computarRadar(top3: GrupoPontuacao[], maxPontos: number) {
 
 export default function Pontuacao() {
   const [ranking, setRanking] = useState<GrupoPontuacao[]>([])
-  const [atividadeRaw, setAtividadeRaw] = useState<IntervaloDados[]>([])
-  const [evolucaoRaw, setEvolucaoRaw] = useState<IntervaloDados[]>([])
   const [desempenhoRaw, setDesempenhoRaw] = useState<IntervaloDados[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(false)
-  const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([])
   const [gruposSelDesempenho, setGruposSelDesempenho] = useState<string[]>([])
 
   useEffect(() => {
     listarRanking()
       .then(dados => {
         setRanking(dados.ranking)
-        setAtividadeRaw(dados.atividade)
-        setEvolucaoRaw(dados.evolucao)
         setDesempenhoRaw(dados.desempenho)
         const top3nomes = dados.ranking.slice(0, 3).map(g => g.nome)
-        setGruposSelecionados(top3nomes)
         setGruposSelDesempenho(top3nomes)
       })
       .catch(() => setErro(true))
@@ -108,25 +100,14 @@ export default function Pontuacao() {
       listarRanking()
         .then(dados => {
           setRanking(dados.ranking)
-          setAtividadeRaw(dados.atividade)
-          setEvolucaoRaw(dados.evolucao)
           setDesempenhoRaw(dados.desempenho)
           const novosNomes = new Set(dados.ranking.map(g => g.nome))
-          setGruposSelecionados(prev => prev.filter(n => novosNomes.has(n)))
           setGruposSelDesempenho(prev => prev.filter(n => novosNomes.has(n)))
         })
         .catch(() => { /* silencia erros de rede no poll silencioso */ })
     }, 20000)
     return () => clearInterval(intervalo)
   }, [])
-
-  function toggleGrupo(nome: string) {
-    setGruposSelecionados(prev =>
-      prev.includes(nome)
-        ? prev.length === 1 ? prev : prev.filter(g => g !== nome)
-        : [...prev, nome]
-    )
-  }
 
   function toggleGrupoDesempenho(nome: string) {
     setGruposSelDesempenho(prev =>
@@ -136,18 +117,13 @@ export default function Pontuacao() {
     )
   }
 
-  const top3     = ranking.slice(0, 3)
+  const top3      = ranking.slice(0, 3)
   const maxPontos = Math.max(ranking[0]?.pontos ?? 0, 1)
 
-  const atividadeDados  = useMemo(() => achatar(atividadeRaw),  [atividadeRaw])
-  const evolucaoDados   = useMemo(() => achatar(evolucaoRaw),   [evolucaoRaw])
   const desempenhoDados = useMemo(() => achatar(desempenhoRaw), [desempenhoRaw])
-  const radarDados     = useMemo(() => computarRadar(top3, maxPontos), [top3, maxPontos])
+  const radarDados      = useMemo(() => computarRadar(top3, maxPontos), [top3, maxPontos])
   const nomesTodosGrupos = useMemo(() => ranking.map(g => g.nome), [ranking])
   const larguraScroll    = Math.max(ranking.length * 80, 900)
-
-  // Top 5 nomes para o gráfico de evolução
-  const top5Nomes = ranking.slice(0, 5).map(g => g.nome)
 
   if (carregando) {
     return (
@@ -265,47 +241,77 @@ export default function Pontuacao() {
             </motion.div>
           )}
 
-          {/* PONTUAÇÃO POR GRUPO */}
-          <motion.div variants={fadeUp} custom={5} initial="hidden" animate="show"
-            className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Pontuação por Grupo</p>
-              {ranking.length > 10 && (
-                <p className="text-xs font-mono text-muted-foreground/40">← arraste para ver todos →</p>
-              )}
-            </div>
-            <div className="overflow-x-auto pb-2"
-              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(201,168,76,0.3) transparent' }}>
-              <div style={{ width: larguraScroll, height: 280 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={ranking} barSize={40} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                    <XAxis dataKey="nome" tick={{ fill: '#6b6875', fontSize: 11, fontFamily: 'monospace' }}
-                      axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
-                      axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                    <Bar dataKey="pontos" name="Pontos" radius={[6, 6, 0, 0]}>
-                      {ranking.map((_, i) => (
-                        <Cell key={i} fill={coresGrupos[i % coresGrupos.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* PONTUAÇÃO POR GRUPO + COMPARATIVO TOP 3 */}
+          <div className="grid grid-cols-2 gap-6">
+
+            <motion.div variants={fadeUp} custom={5} initial="hidden" animate="show"
+              className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Pontuação por Grupo</p>
+                {ranking.length > 6 && (
+                  <p className="text-xs font-mono text-muted-foreground/40">← arraste →</p>
+                )}
               </div>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-1">
-              {ranking.map((g, i) => (
-                <div key={g.nome} className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: coresGrupos[i % coresGrupos.length] }} />
-                  <span className="text-xs font-mono text-muted-foreground">{g.nome}</span>
+              <div className="overflow-x-auto pb-2"
+                style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(201,168,76,0.3) transparent' }}>
+                <div style={{ width: larguraScroll, height: 240 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={ranking} barSize={40} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                      <XAxis dataKey="nome" tick={{ fill: '#6b6875', fontSize: 11, fontFamily: 'monospace' }}
+                        axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
+                        axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                      <Bar dataKey="pontos" name="Pontos" radius={[6, 6, 0, 0]}>
+                        {ranking.map((_, i) => (
+                          <Cell key={i} fill={coresGrupos[i % coresGrupos.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          </motion.div>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-1">
+                {ranking.map((g, i) => (
+                  <div key={g.nome} className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: coresGrupos[i % coresGrupos.length] }} />
+                    <span className="text-xs font-mono text-muted-foreground">{g.nome}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {top3.length >= 3 && (
+              <motion.div variants={fadeUp} custom={6} initial="hidden" animate="show"
+                className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
+                <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Comparativo — Top 3</p>
+                <ResponsiveContainer width="100%" height={240}>
+                  <RadarChart data={radarDados}>
+                    <PolarGrid stroke="rgba(255,255,255,0.06)" />
+                    <PolarAngleAxis dataKey="categoria"
+                      tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }} />
+                    <Radar name={top3[0].nome} dataKey={top3[0].nome} stroke={COR_GOLD}   fill={COR_GOLD}   fillOpacity={0.15} strokeWidth={2} />
+                    <Radar name={top3[1].nome} dataKey={top3[1].nome} stroke={COR_SILVER} fill={COR_SILVER} fillOpacity={0.10} strokeWidth={2} />
+                    <Radar name={top3[2].nome} dataKey={top3[2].nome} stroke={COR_BRONZE} fill={COR_BRONZE} fillOpacity={0.10} strokeWidth={2} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                  </RadarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center gap-4 justify-center">
+                  {([[top3[0].nome, COR_GOLD],[top3[1].nome, COR_SILVER],[top3[2].nome, COR_BRONZE]] as [string,string][]).map(([nome,cor]) => (
+                    <div key={nome} className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cor }} />
+                      <span className="text-xs font-mono text-muted-foreground">{nome}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+          </div>
 
           {/* RESPOSTAS POR STATUS */}
-          <motion.div variants={fadeUp} custom={6} initial="hidden" animate="show"
+          <motion.div variants={fadeUp} custom={7} initial="hidden" animate="show"
             className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Respostas por Status</p>
@@ -340,82 +346,6 @@ export default function Pontuacao() {
             </div>
           </motion.div>
 
-          {/* ATIVIDADE AO LONGO DO TEMPO */}
-          {atividadeDados.length > 1 && (
-            <motion.div variants={fadeUp} custom={7} initial="hidden" animate="show"
-              className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-5">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">
-                    Atividade ao Longo do Tempo
-                  </p>
-                  <p className="text-xs font-mono text-muted-foreground/40 mt-1">
-                    Respostas enviadas (acumulado por 10 minutos)
-                  </p>
-                </div>
-                <p className="text-xs font-mono text-muted-foreground/40">Selecione os grupos para comparar</p>
-              </div>
-
-              {/* Filtro */}
-              <div className="flex flex-wrap gap-2">
-                {nomesTodosGrupos.map((nome, i) => {
-                  const selecionado = gruposSelecionados.includes(nome)
-                  const cor = coresGrupos[i % coresGrupos.length]
-                  return (
-                    <button key={nome} onClick={() => toggleGrupo(nome)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-mono transition-all duration-200"
-                      style={{
-                        borderColor: selecionado ? cor : 'rgba(255,255,255,0.1)',
-                        backgroundColor: selecionado ? `${cor}20` : 'transparent',
-                        color: selecionado ? cor : '#6b6875',
-                      }}>
-                      <div className="w-2 h-2 rounded-full transition-all"
-                        style={{ backgroundColor: selecionado ? cor : '#6b6875' }} />
-                      {nome}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Gráfico */}
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={atividadeDados} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="tempo" tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={tooltipStyle}
-                    formatter={(value, name) => [`${value} respostas`, String(name)]} />
-                  {nomesTodosGrupos.map((nome, i) =>
-                    gruposSelecionados.includes(nome) ? (
-                      <Line key={nome} type="monotone" dataKey={nome}
-                        stroke={coresGrupos[i % coresGrupos.length]}
-                        strokeWidth={2}
-                        dot={{ fill: coresGrupos[i % coresGrupos.length], r: 4 }}
-                        activeDot={{ r: 6 }}
-                        animationDuration={400}
-                      />
-                    ) : null
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-
-              <div className="flex flex-wrap gap-4">
-                {gruposSelecionados.map(nome => {
-                  const i = nomesTodosGrupos.indexOf(nome)
-                  return (
-                    <div key={nome} className="flex items-center gap-1.5">
-                      <div className="w-4 h-0.5 rounded-full"
-                        style={{ backgroundColor: coresGrupos[i % coresGrupos.length] }} />
-                      <span className="text-xs font-mono text-muted-foreground">{nome}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </motion.div>
-          )}
-
           {/* DESEMPENHO POR TEMPO */}
           {desempenhoDados.length > 1 && (
             <motion.div variants={fadeUp} custom={8} initial="hidden" animate="show"
@@ -426,13 +356,12 @@ export default function Pontuacao() {
                     Desempenho por Tempo
                   </p>
                   <p className="text-xs font-mono text-muted-foreground/40 mt-1">
-                    Pontos acumulados pelo horário de envio (intervalos de 10 min)
+                    Pontos acumulados pelo horário de envio (por minuto)
                   </p>
                 </div>
                 <p className="text-xs font-mono text-muted-foreground/40">Selecione os grupos para comparar</p>
               </div>
 
-              {/* Filtro */}
               <div className="flex flex-wrap gap-2">
                 {nomesTodosGrupos.map((nome, i) => {
                   const selecionado = gruposSelDesempenho.includes(nome)
@@ -453,7 +382,6 @@ export default function Pontuacao() {
                 })}
               </div>
 
-              {/* Gráfico */}
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={desempenhoDados} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -492,73 +420,8 @@ export default function Pontuacao() {
             </motion.div>
           )}
 
-          {/* EVOLUÇÃO + RADAR lado a lado */}
-          {(evolucaoDados.length > 1 || top3.length >= 3) && (
-            <div className="grid grid-cols-2 gap-6">
-
-              {evolucaoDados.length > 1 && (
-                <motion.div variants={fadeUp} custom={8} initial="hidden" animate="show"
-                  className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
-                  <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">
-                    Evolução de Pontos — Top {top5Nomes.length}
-                  </p>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={evolucaoDados}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                      <XAxis dataKey="tempo" tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
-                        axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }}
-                        axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={tooltipStyle} />
-                      {top5Nomes.map((nome, i) => (
-                        <Line key={nome} type="monotone" dataKey={nome}
-                          stroke={coresGrupos[i]} strokeWidth={2}
-                          dot={{ fill: coresGrupos[i], r: 3 }} />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-wrap gap-3">
-                    {top5Nomes.map((nome, i) => (
-                      <div key={nome} className="flex items-center gap-1.5">
-                        <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: coresGrupos[i] }} />
-                        <span className="text-xs font-mono text-muted-foreground">{nome}</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {top3.length >= 3 && (
-                <motion.div variants={fadeUp} custom={9} initial="hidden" animate="show"
-                  className="bg-[#13131a] border border-border rounded-2xl p-6 flex flex-col gap-4">
-                  <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase">Comparativo — Top 3</p>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <RadarChart data={radarDados}>
-                      <PolarGrid stroke="rgba(255,255,255,0.06)" />
-                      <PolarAngleAxis dataKey="categoria"
-                        tick={{ fill: '#6b6875', fontSize: 10, fontFamily: 'monospace' }} />
-                      <Radar name={top3[0].nome} dataKey={top3[0].nome} stroke={COR_GOLD}   fill={COR_GOLD}   fillOpacity={0.15} strokeWidth={2} />
-                      <Radar name={top3[1].nome} dataKey={top3[1].nome} stroke={COR_SILVER} fill={COR_SILVER} fillOpacity={0.10} strokeWidth={2} />
-                      <Radar name={top3[2].nome} dataKey={top3[2].nome} stroke={COR_BRONZE} fill={COR_BRONZE} fillOpacity={0.10} strokeWidth={2} />
-                      <Tooltip contentStyle={tooltipStyle} />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                  <div className="flex items-center gap-4 justify-center">
-                    {([[top3[0].nome, COR_GOLD],[top3[1].nome, COR_SILVER],[top3[2].nome, COR_BRONZE]] as [string,string][]).map(([nome,cor]) => (
-                      <div key={nome} className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cor }} />
-                        <span className="text-xs font-mono text-muted-foreground">{nome}</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-            </div>
-          )}
-
           {/* RANKING GERAL */}
-          <motion.div variants={fadeUp} custom={10} initial="hidden" animate="show"
+          <motion.div variants={fadeUp} custom={9} initial="hidden" animate="show"
             className="bg-[#13131a] border border-primary/20 rounded-2xl overflow-hidden">
             <div className="px-7 py-5 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
               <p className="text-xs font-mono text-muted-foreground tracking-widest uppercase mb-1">Classificação</p>
@@ -566,10 +429,10 @@ export default function Pontuacao() {
             </div>
             <div className="p-4 flex flex-col gap-2">
               {ranking.map((g, i) => {
-                const cor    = corPosicao(i)
-                const pct    = Math.round((g.pontos / maxPontos) * 100)
+                const cor = corPosicao(i)
+                const pct = Math.round((g.pontos / maxPontos) * 100)
                 return (
-                  <motion.div key={g.grupo_id} variants={fadeUp} custom={i + 11} initial="hidden" animate="show"
+                  <motion.div key={g.grupo_id} variants={fadeUp} custom={i + 10} initial="hidden" animate="show"
                     className={`flex items-center gap-5 px-5 py-4 rounded-xl border transition-all
                                ${i === 0 ? 'border-primary/30 bg-primary/5' : 'border-border bg-card/20'}`}>
                     <span className="font-mono font-bold text-lg w-6 shrink-0 text-center" style={{ color: cor }}>

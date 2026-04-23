@@ -15,12 +15,13 @@ interface FormDossie {
 interface Props {
   modo: 'criar' | 'editar'
   form: FormDossie
+  salvando?: boolean
   onFechar: () => void
   onSalvar: () => void
   onChangeForm: (form: FormDossie) => void
 }
 
-export default function ModalGerenciarAvaliador({ modo, form, onFechar, onSalvar, onChangeForm }: Props) {
+export default function ModalGerenciarAvaliador({ modo, form, salvando, onFechar, onSalvar, onChangeForm }: Props) {
 
   const inputClass = `w-full bg-input border border-border rounded-lg px-4 py-2.5 text-sm text-foreground
     placeholder:text-muted-foreground/50 font-mono focus:outline-none focus:border-primary/50 transition-colors`
@@ -177,14 +178,17 @@ export default function ModalGerenciarAvaliador({ modo, form, onFechar, onSalvar
               )}
             </div>
 
-            <button onClick={onSalvar} disabled={!valido}
+            <button onClick={onSalvar} disabled={!valido || salvando}
               className={`w-full py-3 border font-mono text-sm tracking-widest rounded-lg
                           transition-all uppercase
-                          ${valido
+                          ${valido && !salvando
                             ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
                             : 'border-border text-muted-foreground opacity-40 cursor-not-allowed'
                           }`}>
-              {modo === 'criar' ? 'Criar Dossiê' : 'Salvar Alterações'}
+              {salvando
+                ? (modo === 'criar' ? 'Criando...' : 'Salvando...')
+                : (modo === 'criar' ? 'Criar Dossiê' : 'Salvar Alterações')
+              }
             </button>
           </div>
         </div>

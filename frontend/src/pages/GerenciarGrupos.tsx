@@ -348,6 +348,7 @@ export default function GerenciarGrupos() {
           `Erro ao excluir grupo ${pending.grupo.nome}: ${e?.response?.data?.detail ?? 'erro desconhecido'}`,
           'erro'
         )
+        await carregarGrupos()
         setSalvando(false)
         return
       }

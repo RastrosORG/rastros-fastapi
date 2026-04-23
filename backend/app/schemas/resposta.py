@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime
 
 
@@ -47,6 +47,6 @@ class GrupoResumoPendentesOutput(BaseModel):
 
 
 class AvaliarRespostaInput(BaseModel):
-    tipo: str  # 'aprovada' | 'aprovada_parcial' | 'rejeitada'
+    tipo: Literal['aprovada', 'aprovada_parcial', 'rejeitada']
     comentario: str
     categoria_nova: Optional[str] = None

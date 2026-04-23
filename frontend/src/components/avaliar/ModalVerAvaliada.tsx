@@ -10,7 +10,7 @@ interface Props {
     tipo: 'aprovada' | 'aprovada_parcial' | 'rejeitada'
     comentario: string
     categoriaNova?: string
-  }) => void
+  }) => void | Promise<void>
 }
 
 export default function ModalVerAvaliada({ resposta: r, onFechar, onCorrigir }: Props) {
@@ -18,6 +18,7 @@ export default function ModalVerAvaliada({ resposta: r, onFechar, onCorrigir }: 
   const [tipo, setTipo] = useState<'aprovada' | 'aprovada_parcial' | 'rejeitada'>(r.status as never)
   const [comentario, setComentario] = useState(r.avaliacao?.comentario ?? '')
   const [categoriaNova, setCategoriaNova] = useState(r.avaliacao?.categoriaNova ?? r.categoria)
+  const [atualizando, setAtualizando] = useState(false)
 
   const status = statusConfig[r.status]
   const StatusIcon = status.icon
@@ -26,16 +27,21 @@ export default function ModalVerAvaliada({ resposta: r, onFechar, onCorrigir }: 
     text-foreground placeholder:text-muted-foreground/50 font-mono focus:outline-none
     focus:border-primary/50 transition-colors`
 
-  function confirmarCorrecao() {
+  async function confirmarCorrecao() {
     if (!comentario.trim()) return
-    onCorrigir(r.id, { tipo, comentario, categoriaNova: tipo === 'aprovada_parcial' ? categoriaNova : undefined })
-    onFechar()
+    if (tipo === 'aprovada_parcial' && (!categoriaNova || categoriaNova === r.categoria)) return
+    setAtualizando(true)
+    try {
+      await onCorrigir(r.id, { tipo, comentario, categoriaNova: tipo === 'aprovada_parcial' ? categoriaNova : undefined })
+    } finally {
+      setAtualizando(false)
+    }
   }
 
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onFechar} className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm" />
+        onClick={atualizando ? undefined : onFechar} className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -65,8 +71,9 @@ export default function ModalVerAvaliada({ resposta: r, onFechar, onCorrigir }: 
                   <Pencil size={12} /> Corrigir
                 </button>
               )}
-              <button onClick={onFechar}
-                className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all">
+              <button onClick={onFechar} disabled={atualizando}
+                className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all
+                           disabled:opacity-30 disabled:cursor-not-allowed">
                 <X size={18} />
               </button>
             </div>
@@ -180,18 +187,20 @@ export default function ModalVerAvaliada({ resposta: r, onFechar, onCorrigir }: 
                 </div>
 
                 <div className="flex gap-3 justify-end">
-                  <button onClick={() => setModoCorrecao(false)}
+                  <button onClick={() => setModoCorrecao(false)} disabled={atualizando}
                     className="px-4 py-2 border border-border text-muted-foreground font-mono text-xs
-                               tracking-widest rounded-lg hover:bg-secondary transition-all uppercase">
+                               tracking-widest rounded-lg hover:bg-secondary transition-all uppercase
+                               disabled:opacity-40 disabled:cursor-not-allowed">
                     Cancelar
                   </button>
-                  <button onClick={confirmarCorrecao} disabled={!comentario.trim()}
+                  <button onClick={confirmarCorrecao}
+                    disabled={atualizando || !comentario.trim() || (tipo === 'aprovada_parcial' && (!categoriaNova || categoriaNova === r.categoria))}
                     className={`px-4 py-2 border font-mono text-xs tracking-widest rounded-lg transition-all uppercase
-                      ${comentario.trim()
+                      ${!atualizando && comentario.trim()
                         ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary'
                         : 'border-border text-muted-foreground opacity-40 cursor-not-allowed'
                       }`}>
-                    Salvar Correção
+                    {atualizando ? 'Atualizando...' : 'Salvar Correção'}
                   </button>
                 </div>
               </>

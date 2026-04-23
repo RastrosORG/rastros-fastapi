@@ -74,7 +74,7 @@ def _verificar_cronometro(db: Session):
 
 def _serializar_resposta(r: Resposta) -> dict:
     avaliacao = None
-    if r.comentario_avaliacao:
+    if r.comentario_avaliacao is not None:
         avaliacao = {
             "comentario": r.comentario_avaliacao,
             "categoria_original": r.categoria_original,
@@ -245,12 +245,15 @@ def avaliar_resposta(
             detail="Você não é o avaliador do grupo dessa resposta."
         )
 
+    if tipo == "aprovada_parcial" and not categoria_nova:
+        raise HTTPException(status_code=422, detail="Categoria nova é obrigatória para aprovação parcial.")
+
     if tipo == "rejeitada":
         pontos = 0
         r.categoria_original = None  # type: ignore[assignment]
         r.categoria_nova = None  # type: ignore[assignment]
-    elif tipo == "aprovada_parcial" and categoria_nova:
-        pontos = PONTOS_CATEGORIA.get(categoria_nova, 0)
+    elif tipo == "aprovada_parcial":
+        pontos = PONTOS_CATEGORIA.get(categoria_nova, 0)  # type: ignore[arg-type]
         r.categoria_original = r.categoria  # type: ignore[assignment]
         r.categoria_nova = categoria_nova  # type: ignore[assignment]
     else:

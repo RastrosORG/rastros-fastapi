@@ -501,7 +501,7 @@ def excluir_grupo_permanente(
     # então os registros de Usuario e CredencialUsuario também precisam sair do banco.
     db.query(MembroGrupo).filter(
         MembroGrupo.grupo_id == grupo_id
-    ).delete(synchronize_session=False)
+    ).delete(synchronize_session='evaluate')
 
     if membro_ids:
         db.query(CredencialUsuario).filter(

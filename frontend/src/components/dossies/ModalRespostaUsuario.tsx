@@ -38,7 +38,7 @@ export default function ModalRespostaUsuario({
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onFechar} className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
+        onClick={enviando ? undefined : onFechar} className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -56,8 +56,8 @@ export default function ModalRespostaUsuario({
                 {nome}
               </h3>
             </div>
-            <button onClick={onFechar}
-              className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all">
+            <button onClick={onFechar} disabled={enviando}
+              className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
               <X size={18} />
             </button>
           </div>

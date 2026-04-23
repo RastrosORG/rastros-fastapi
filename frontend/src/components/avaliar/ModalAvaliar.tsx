@@ -10,7 +10,7 @@ interface Props {
     tipo: 'aprovada' | 'aprovada_parcial' | 'rejeitada'
     comentario: string
     categoriaNova?: string
-  }) => void
+  }) => void | Promise<void>
 }
 
 type TipoAvaliacao = 'aprovada' | 'aprovada_parcial' | 'rejeitada'
@@ -18,7 +18,8 @@ type TipoAvaliacao = 'aprovada' | 'aprovada_parcial' | 'rejeitada'
 export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props) {
   const [tipo, setTipo] = useState<TipoAvaliacao | null>(null)
   const [comentario, setComentario] = useState('')
-  const [categoriaNova, setCategoriaNova] = useState(r.categoria)
+  const [categoriaNova, setCategoriaNova] = useState('')
+  const [avaliando, setAvaliando] = useState(false)
 
   const inputClass = `w-full bg-input border border-border rounded-lg px-4 py-2.5 text-sm
     text-foreground placeholder:text-muted-foreground/50 font-mono focus:outline-none
@@ -30,20 +31,25 @@ export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props
       ? categorias.find(c => c.id === r.categoria)?.pontos ?? 0
       : 0
 
-  function confirmar() {
+  async function confirmar() {
     if (!tipo || !comentario.trim()) return
-    onAvaliar(r.id, {
-      tipo,
-      comentario,
-      categoriaNova: tipo === 'aprovada_parcial' ? categoriaNova : undefined,
-    })
-    onFechar()
+    if (tipo === 'aprovada_parcial' && !categoriaNova) return
+    setAvaliando(true)
+    try {
+      await onAvaliar(r.id, {
+        tipo,
+        comentario,
+        categoriaNova: tipo === 'aprovada_parcial' ? categoriaNova : undefined,
+      })
+    } finally {
+      setAvaliando(false)
+    }
   }
 
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onFechar} className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm" />
+        onClick={avaliando ? undefined : onFechar} className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -62,8 +68,9 @@ export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props
                 {r.titulo}
               </h3>
             </div>
-            <button onClick={onFechar}
-              className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all shrink-0">
+            <button onClick={onFechar} disabled={avaliando}
+              className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-white/10 transition-all shrink-0
+                         disabled:opacity-30 disabled:cursor-not-allowed">
               <X size={18} />
             </button>
           </div>
@@ -176,10 +183,10 @@ export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props
 
             {/* Botão confirmar */}
             <button onClick={confirmar}
-              disabled={!tipo || !comentario.trim()}
+              disabled={avaliando || !tipo || !comentario.trim() || (tipo === 'aprovada_parcial' && !categoriaNova)}
               className={`w-full py-3 border font-mono text-sm tracking-widest rounded-lg
                           transition-all uppercase
-                          ${tipo && comentario.trim()
+                          ${tipo && comentario.trim() && !avaliando
                             ? tipo === 'aprovada'
                               ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
                               : tipo === 'aprovada_parcial'
@@ -187,7 +194,7 @@ export default function ModalAvaliar({ resposta: r, onFechar, onAvaliar }: Props
                                 : 'border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20'
                             : 'border-border text-muted-foreground opacity-40 cursor-not-allowed'
                           }`}>
-              {!tipo ? 'Selecione uma decisão' : `Confirmar — ${
+              {avaliando ? 'Avaliando...' : !tipo ? 'Selecione uma decisão' : `Confirmar — ${
                 tipo === 'aprovada' ? 'Aceitar' : tipo === 'aprovada_parcial' ? 'Aceitar com Alterações' : 'Rejeitar'
               }`}
             </button>

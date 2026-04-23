@@ -35,7 +35,8 @@ def listar_ranking_completo(db: Session) -> dict:
     atividade_buckets: dict = defaultdict(lambda: defaultdict(int))
     evolucao_buckets: dict = defaultdict(lambda: defaultdict(int))
     desempenho_buckets: dict = defaultdict(lambda: defaultdict(int))
-    max_bucket = 0
+    max_bucket_10 = 0
+    max_bucket_1 = 0
 
     if inicio:
         for g in grupos:
@@ -43,44 +44,44 @@ def listar_ranking_completo(db: Session) -> dict:
             for r in g.respostas:
                 delta = (r.criado_em - inicio).total_seconds() / 60
                 if delta >= 0:
-                    bucket = int(delta // 10) * 10
-                    max_bucket = max(max_bucket, bucket)
-                    # Atividade: contagem de envios por intervalo
-                    atividade_buckets[bucket][nome] += 1
-                    # Desempenho: pontos obtidos agrupados pelo momento do envio
+                    bucket_10 = int(delta // 10) * 10
+                    bucket_1 = int(delta)
+                    max_bucket_10 = max(max_bucket_10, bucket_10)
+                    max_bucket_1 = max(max_bucket_1, bucket_1)
+                    atividade_buckets[bucket_10][nome] += 1
                     if r.pontos > 0:
-                        desempenho_buckets[bucket][nome] += r.pontos
+                        desempenho_buckets[bucket_1][nome] += r.pontos
 
-                # Evolução: pontos pelo momento da avaliação
                 if r.avaliado_em and r.pontos > 0:
                     delta_av = (r.avaliado_em - inicio).total_seconds() / 60
                     if delta_av >= 0:
                         bucket_av = int(delta_av // 10) * 10
-                        max_bucket = max(max_bucket, bucket_av)
+                        max_bucket_10 = max(max_bucket_10, bucket_av)
                         evolucao_buckets[bucket_av][nome] += r.pontos
 
-    buckets = list(range(0, max_bucket + 10, 10)) if max_bucket > 0 else [0]
+    buckets_10 = list(range(0, max_bucket_10 + 10, 10)) if max_bucket_10 > 0 else [0]
+    buckets_1  = list(range(0, max_bucket_1 + 2))       if max_bucket_1  > 0 else [0]
 
-    # Atividade acumulada
+    # Atividade acumulada (10 min)
     atividade_result = []
     acum_at = {nome: 0 for nome in todos_nomes}
-    for b in buckets:
+    for b in buckets_10:
         for nome in todos_nomes:
             acum_at[nome] += atividade_buckets[b].get(nome, 0)
         atividade_result.append({"rotulo": f"{b}min", "dados": dict(acum_at)})
 
-    # Evolução acumulada
+    # Evolução acumulada (10 min)
     evolucao_result = []
     acum_ev = {nome: 0 for nome in todos_nomes}
-    for b in buckets:
+    for b in buckets_10:
         for nome in todos_nomes:
             acum_ev[nome] += evolucao_buckets[b].get(nome, 0)
         evolucao_result.append({"rotulo": f"{b}min", "dados": dict(acum_ev)})
 
-    # Desempenho acumulado (pontos por hora de envio)
+    # Desempenho acumulado — por minuto
     desempenho_result = []
     acum_de = {nome: 0 for nome in todos_nomes}
-    for b in buckets:
+    for b in buckets_1:
         for nome in todos_nomes:
             acum_de[nome] += desempenho_buckets[b].get(nome, 0)
         desempenho_result.append({"rotulo": f"{b}min", "dados": dict(acum_de)})

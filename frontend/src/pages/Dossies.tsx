@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Paperclip, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, MessageSquare, FileSearch, X, Trash2, ClipboardList } from 'lucide-react'
+import { Paperclip, ChevronRight, CheckCircle, Clock, Lock, Plus, Pencil, Archive, MapPin, Calendar, FileSearch, X, Trash2, ClipboardList } from 'lucide-react'
 import type { Variants } from 'framer-motion'
 import { User } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
@@ -56,7 +56,6 @@ interface Dossie {
   arquivos: ArquivoDossie[]
   arquivosAvaliador: string[]
   equipes: string[]
-  respostas: number
   status: 'ativo' | 'arquivado'
 }
 
@@ -134,7 +133,6 @@ export default function Dossies() {
           arquivos: d.arquivos,
           arquivosAvaliador: [],
           equipes: [],
-          respostas: d.total_respostas,
           status: d.ativo ? 'ativo' : 'arquivado',
         })))
       } catch (e) {
@@ -163,6 +161,7 @@ export default function Dossies() {
   const [dossieParaExcluir, setDossieParaExcluir] = useState<Dossie | null>(null)
   const [modalLogAberto, setModalLogAberto] = useState(false)
   const [logs, setLogs] = useState<LogExclusaoAPI[]>([])
+  const [salvandoDossie, setSalvandoDossie] = useState(false)
 
   const dossieFiltrados = USER_ROLE === 'avaliador'
     ? dossies.filter(d => filtro === 'todos' ? true : d.status === filtro)
@@ -233,6 +232,7 @@ export default function Dossies() {
 
   async function salvarDossie() {
     if (!formDossie.nome.trim() || !formDossie.descricao.trim()) return
+    setSalvandoDossie(true)
     try {
       if (modalModo === 'criar') {
         const novo = await criarDossie({
@@ -302,6 +302,8 @@ export default function Dossies() {
       setModalModo(null)
     } catch (e) {
       console.error('Erro ao salvar dossiê:', e)
+    } finally {
+      setSalvandoDossie(false)
     }
   }
 
@@ -612,11 +614,6 @@ export default function Dossies() {
                             {d.local}
                           </span>
                         </button>
-                        <div className="flex items-center gap-2">
-                          <MessageSquare size={13} className="text-primary/60 shrink-0" />
-                          <span>{d.respostas} resposta{d.respostas !== 1 ? 's' : ''}</span>
-                        </div>
-
                         {/* Arquivos de apoio — abre o modal de detalhes */}
                         {d.arquivosAvaliador.length > 0 && (
                           <button
@@ -706,6 +703,7 @@ export default function Dossies() {
             <ModalGerenciarAvaliador
               modo={modalModo}
               form={formDossie}
+              salvando={salvandoDossie}
               onFechar={() => setModalModo(null)}
               onSalvar={salvarDossie}
               onChangeForm={setFormDossie}
