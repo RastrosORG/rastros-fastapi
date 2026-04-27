@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from time import monotonic
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
 from typing import List
 from sqlalchemy.orm import Session
@@ -113,6 +114,9 @@ async def ws_grupo(
 
     ping_task = asyncio.create_task(keepalive())
 
+    COOLDOWN = 1.0  # segundos mínimos entre mensagens de texto
+    ultimo_envio = 0.0
+
     try:
         while True:
             data = await websocket.receive_json()
@@ -157,6 +161,11 @@ async def ws_grupo(
                     })
 
                 elif texto:
+                    agora = monotonic()
+                    if agora - ultimo_envio < COOLDOWN:
+                        db.close()
+                        continue
+                    ultimo_envio = agora
                     is_av = bool(usuario.is_avaliador)
                     dados_msg = await asyncio.to_thread(
                         chat_servico.salvar_mensagem,

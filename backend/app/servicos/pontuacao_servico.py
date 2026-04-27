@@ -1,12 +1,12 @@
 from collections import defaultdict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.modelos.grupo import Grupo
 from app.modelos.cronometro import Cronometro
 
 
 def listar_ranking_completo(db: Session) -> dict:
-    grupos = db.query(Grupo).all()
+    grupos = db.query(Grupo).options(selectinload(Grupo.respostas)).all()
 
     # Mapa grupo_id → nome de exibição
     nomes = {g.id: (g.nome_custom or g.nome) for g in grupos}

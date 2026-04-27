@@ -120,6 +120,12 @@ def criar_resposta(
     if not dossie:
         raise HTTPException(status_code=404, detail="Dossiê não encontrado ou inativo.")
 
+    # Upload para S3 antes de abrir a transação — evita segurar sessão DB durante I/O lento
+    arquivos_salvos = [
+        upload_arquivo(arq, "respostas")
+        for arq in arquivos
+    ]
+
     resposta = Resposta(
         titulo=titulo,
         descricao=descricao,
@@ -130,10 +136,9 @@ def criar_resposta(
         status="pendente",
     )
     db.add(resposta)
-    db.flush()  # obtém o ID antes do commit
+    db.flush()  # obtém o ID
 
-    for arquivo in arquivos:
-        nome, url = upload_arquivo(arquivo, f"respostas/{resposta.id}")
+    for nome, url in arquivos_salvos:
         arq = ArquivoResposta(resposta_id=int(resposta.id), nome_arquivo=nome, url_s3=url)
         db.add(arq)
 
