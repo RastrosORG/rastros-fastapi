@@ -65,72 +65,73 @@ async def ws_grupo(
     token: str = Query(...),
 ):
     from app.db.sessao import SessionLocal
-    db = SessionLocal()
-    usuario: Usuario | None = None
-    avaliador_ativo = False  # True só após o avaliador clicar "Entrar"
 
+    usuario: Usuario | None = None
+    avaliador_ativo = False
+
+    # Sessão de curta duração — só para autenticação e dados iniciais
+    db = SessionLocal()
     try:
         usuario = await asyncio.to_thread(_usuario_do_token, token, db)
         if not usuario:
+            db.close()
             await websocket.close(code=4001)
             return
 
-        await manager.connect_grupo(websocket, grupo_id)
-
-        # Registra socket do usuário para notificações diretas (ex: troca de grupo)
-        if not usuario.is_avaliador:
-            manager.register_usuario(int(usuario.id), websocket)
-
         grupo = await asyncio.to_thread(db.get, Grupo, grupo_id)
 
-        # Usuários recebem histórico completo; avaliador começa do zero
         if not usuario.is_avaliador:
             hist = await asyncio.to_thread(chat_servico.historico, grupo_id, db)
-            await websocket.send_json({
-                "evento": "historico",
-                "dados": hist,
-                "avaliador_presente": grupo.avaliador_presente if grupo else False,
-                "chamou_avaliador": grupo.chamou_avaliador if grupo else False,
-            })
+            avaliador_presente = grupo.avaliador_presente if grupo else False
+            chamou_avaliador = grupo.chamou_avaliador if grupo else False
         else:
-            await websocket.send_json({
-                "evento": "historico",
-                "dados": [],
-                "avaliador_presente": False,
-                "chamou_avaliador": False,
-            })
+            hist = []
+            avaliador_presente = False
+            chamou_avaliador = False
+    finally:
+        db.close()
 
-        # Keepalive: tarefa paralela que envia ping a cada PING_INTERVAL segundos
-        async def keepalive():
-            while True:
-                await asyncio.sleep(PING_INTERVAL)
-                try:
-                    await websocket.send_json({"evento": "ping"})
-                except Exception:
-                    break
+    await manager.connect_grupo(websocket, grupo_id)
 
-        ping_task = asyncio.create_task(keepalive())
+    if not usuario.is_avaliador:
+        manager.register_usuario(int(usuario.id), websocket)
 
-        try:
-            while True:
-                data = await websocket.receive_json()
-                acao = data.get("acao")
-                texto = (data.get("texto") or "").strip()
+    await websocket.send_json({
+        "evento": "historico",
+        "dados": hist,
+        "avaliador_presente": avaliador_presente,
+        "chamou_avaliador": chamou_avaliador,
+    })
 
-                # ── Usuário chama avaliador ──────────────────────────
+    async def keepalive():
+        while True:
+            await asyncio.sleep(PING_INTERVAL)
+            try:
+                await websocket.send_json({"evento": "ping"})
+            except Exception:
+                break
+
+    ping_task = asyncio.create_task(keepalive())
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            acao = data.get("acao")
+            texto = (data.get("texto") or "").strip()
+
+            # Sessão de curta duração — só para esta operação
+            db = SessionLocal()
+            try:
                 if acao == "chamar" and not usuario.is_avaliador:
                     await asyncio.to_thread(chat_servico.marcar_chamada, grupo_id, db)
+                    grupo = await asyncio.to_thread(db.get, Grupo, grupo_id)
                     if grupo:
-                        # Recarrega o grupo para pegar avaliador_id atualizado
-                        # caso o grupo tenha sido transferido após esta conexão
-                        await asyncio.to_thread(db.refresh, grupo)
                         await manager.notificar_avaliador(int(grupo.avaliador_id), {
                             "evento": "chamada",
                             "grupo_id": grupo_id,
                             "grupo_nome": grupo.nome_custom or grupo.nome,
                         })
 
-                # ── Avaliador entra no chat ───────────────────────────
                 elif acao == "entrar" and usuario.is_avaliador:
                     await asyncio.to_thread(chat_servico.entrar_chat, grupo_id, db)
                     avaliador_ativo = True
@@ -143,7 +144,6 @@ async def ws_grupo(
                         "dados": dados_msg,
                     })
 
-                # ── Avaliador sai do chat ─────────────────────────────
                 elif acao == "sair" and usuario.is_avaliador and avaliador_ativo:
                     await asyncio.to_thread(chat_servico.sair_chat, grupo_id, db)
                     avaliador_ativo = False
@@ -156,7 +156,6 @@ async def ws_grupo(
                         "dados": dados_msg,
                     })
 
-                # ── Mensagem de texto ─────────────────────────────────
                 elif texto:
                     is_av = bool(usuario.is_avaliador)
                     dados_msg = await asyncio.to_thread(
@@ -167,30 +166,32 @@ async def ws_grupo(
                         "evento": "mensagem",
                         "dados": dados_msg,
                     })
-
-        finally:
-            ping_task.cancel()
+            finally:
+                db.close()
 
     except WebSocketDisconnect:
         pass
     finally:
+        ping_task.cancel()
         manager.disconnect_grupo(websocket, grupo_id)
         if usuario and not usuario.is_avaliador:
             manager.unregister_usuario(int(usuario.id), websocket)
 
-        # Se o avaliador desconectou sem sair explicitamente — limpa o estado
+        # Avaliador desconectou sem sair explicitamente — limpa o estado
         if usuario and usuario.is_avaliador and avaliador_ativo:
-            await asyncio.to_thread(chat_servico.sair_chat, grupo_id, db)
-            dados_msg = await asyncio.to_thread(
-                chat_servico.salvar_mensagem,
-                grupo_id, None, "O avaliador saiu do chat.", False, True, db,
-            )
+            db = SessionLocal()
+            try:
+                await asyncio.to_thread(chat_servico.sair_chat, grupo_id, db)
+                dados_msg = await asyncio.to_thread(
+                    chat_servico.salvar_mensagem,
+                    grupo_id, None, "O avaliador saiu do chat.", False, True, db,
+                )
+            finally:
+                db.close()
             await manager.broadcast_grupo(grupo_id, {
                 "evento": "avaliador_saiu",
                 "dados": dados_msg,
             })
-
-        db.close()
 
 
 # ── WebSocket: canal de notificações do avaliador ────────────────────
@@ -205,37 +206,36 @@ async def ws_avaliador(
     token: str = Query(...),
 ):
     from app.db.sessao import SessionLocal
-    db = SessionLocal()
-    usuario: Usuario | None = None
 
+    # Sessão de curta duração — só para autenticação
+    db = SessionLocal()
     try:
         usuario = await asyncio.to_thread(_usuario_do_token, token, db)
-        if not usuario or not usuario.is_avaliador:
-            await websocket.close(code=4001)
-            return
+    finally:
+        db.close()
 
-        await manager.connect_avaliador(websocket, int(usuario.id))
+    if not usuario or not usuario.is_avaliador:
+        await websocket.close(code=4001)
+        return
 
-        async def keepalive():
-            while True:
-                await asyncio.sleep(PING_INTERVAL)
-                try:
-                    await websocket.send_json({"evento": "ping"})
-                except Exception:
-                    break
+    await manager.connect_avaliador(websocket, int(usuario.id))
 
-        ping_task = asyncio.create_task(keepalive())
+    async def keepalive():
+        while True:
+            await asyncio.sleep(PING_INTERVAL)
+            try:
+                await websocket.send_json({"evento": "ping"})
+            except Exception:
+                break
 
-        try:
-            while True:
-                # Canal só recebe — mantém a conexão viva respondendo ao browser
-                await websocket.receive_text()
-        finally:
-            ping_task.cancel()
+    ping_task = asyncio.create_task(keepalive())
 
+    try:
+        while True:
+            # Canal só recebe — mantém a conexão viva respondendo ao browser
+            await websocket.receive_text()
     except WebSocketDisconnect:
         pass
     finally:
-        if usuario:
-            manager.disconnect_avaliador(int(usuario.id))
-        db.close()
+        ping_task.cancel()
+        manager.disconnect_avaliador(int(usuario.id))

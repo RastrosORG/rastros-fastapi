@@ -96,18 +96,23 @@ async def incrementar(
 async def websocket_cronometro(
     websocket: WebSocket,
     token: str = Query(...),
-    db: Session = Depends(get_db),
 ):
-    # Autenticação via query param
+    from app.db.sessao import SessionLocal
+
     payload = verificar_token(token)
     if payload is None:
         await websocket.close(code=4001)
         return
 
+    # Sessão de curta duração — só para buscar o estado inicial
+    db = SessionLocal()
+    try:
+        estado = await cronometro_servico.obter_estado(db)
+    finally:
+        db.close()
+
     await gerenciador.conectar(websocket)
     try:
-        # Envia o estado atual imediatamente após a conexão
-        estado = await cronometro_servico.obter_estado(db)
         await websocket.send_json(estado)
 
         # Mantém a conexão aberta até o cliente desconectar
