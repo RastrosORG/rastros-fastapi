@@ -3,7 +3,7 @@ import { X, Calendar, MapPin, MessageSquare, Paperclip, FileText, Download, Exte
 
 function calcularIdade(dataNascimento: string): number {
   const hoje = new Date()
-  const nascimento = new Date(dataNascimento)
+  const nascimento = new Date(dataNascimento + 'T12:00:00')
   let idade = hoje.getFullYear() - nascimento.getFullYear()
   const mesAtual = hoje.getMonth()
   const mesNasc = nascimento.getMonth()
@@ -108,7 +108,7 @@ export default function ModalDetalhesDossie({ dossie: d, onFechar, onAbrirMapa, 
                     <p className="text-xs font-mono text-primary/60 tracking-widest uppercase">Desaparecimento</p>
                     <div className="flex items-center gap-2 text-sm text-foreground font-mono">
                     <Calendar size={14} className="text-primary/60" />
-                    {new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}
+                    {new Date(d.data_desaparecimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                     </div>
                 </div>
                 {d.data_nascimento && (
@@ -116,7 +116,7 @@ export default function ModalDetalhesDossie({ dossie: d, onFechar, onAbrirMapa, 
                     <p className="text-xs font-mono text-primary/60 tracking-widest uppercase">Nascimento</p>
                     <div className="flex items-center gap-2 text-sm text-foreground font-mono">
                         <Calendar size={14} className="text-primary/60" />
-                        {new Date(d.data_nascimento).toLocaleDateString('pt-BR')}
+                        {new Date(d.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                         <span className="text-muted-foreground/50 text-xs">
                         ({calcularIdade(d.data_nascimento)} anos)
                         </span>

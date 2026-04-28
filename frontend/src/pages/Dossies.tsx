@@ -28,7 +28,7 @@ const fadeUp: Variants = {
 
 function calcularIdade(dataNascimento: string): number {
   const hoje = new Date()
-  const nascimento = new Date(dataNascimento)
+  const nascimento = new Date(dataNascimento + 'T12:00:00')
   let idade = hoje.getFullYear() - nascimento.getFullYear()
   const mesAtual = hoje.getMonth()
   const mesNasc = nascimento.getMonth()
@@ -523,13 +523,13 @@ export default function Dossies() {
                       <div className="flex flex-col gap-1.5 text-xs font-mono text-muted-foreground flex-1">
                         <div className="flex items-center gap-2">
                           <Calendar size={13} className="text-primary/60 shrink-0" />
-                          <span>Desap.: {new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}</span>
+                          <span>Desap.: {new Date(d.data_desaparecimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                         </div>
                         {d.data_nascimento && (
                           <div className="flex items-center gap-2">
                             <Calendar size={13} className="text-primary/60 shrink-0 opacity-50" />
                             <span>
-                              Nasc.: {new Date(d.data_nascimento).toLocaleDateString('pt-BR')}
+                              Nasc.: {new Date(d.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                               <span className="text-muted-foreground/50 ml-1">
                                 ({calcularIdade(d.data_nascimento)} anos)
                               </span>
@@ -594,13 +594,13 @@ export default function Dossies() {
                       <div className="flex flex-col gap-1.5 text-xs font-mono text-muted-foreground flex-1">
                         <div className="flex items-center gap-2">
                           <Calendar size={13} className="text-primary/60 shrink-0" />
-                          <span>Desap.: {new Date(d.data_desaparecimento).toLocaleDateString('pt-BR')}</span>
+                          <span>Desap.: {new Date(d.data_desaparecimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                         </div>
                         {d.data_nascimento && (
                           <div className="flex items-center gap-2">
                             <Calendar size={13} className="text-primary/60 shrink-0 opacity-50" />
                             <span>
-                              Nasc.: {new Date(d.data_nascimento).toLocaleDateString('pt-BR')}
+                              Nasc.: {new Date(d.data_nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}
                               <span className="text-muted-foreground/50 ml-1">
                                 ({calcularIdade(d.data_nascimento)} anos)
                               </span>
