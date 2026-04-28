@@ -94,7 +94,7 @@ export default function ModalGerenciarAvaliador({ modo, form, salvando, onFechar
               </label>
               <textarea placeholder="Descreva as circunstâncias do desaparecimento..."
                 value={form.descricao} onChange={e => onChangeForm({ ...form, descricao: e.target.value })}
-                rows={3} className={`${inputClass} resize-none`} />
+                rows={6} className={`${inputClass} resize-y min-h-[120px]`} />
             </div>
 
             {/* Datas */}

@@ -182,6 +182,9 @@ export default function Dossies() {
     if (!formResposta.categoria) novosErros.categoria = 'Selecione uma categoria'
     if (!formResposta.link.trim()) novosErros.link = 'Link é obrigatório'
     if (formResposta.arquivos.length === 0) novosErros.arquivos = 'Anexe pelo menos um arquivo'
+    if (formResposta.arquivos.length > 5) novosErros.arquivos = 'Máximo de 5 arquivos por resposta.'
+    const arquivoGrande = formResposta.arquivos.find(f => f.size > 50 * 1024 * 1024)
+    if (arquivoGrande) novosErros.arquivos = `"${arquivoGrande.name}" excede o limite de 50 MB.`
     if (Object.keys(novosErros).length > 0) { setErros(novosErros); return }
 
     if (!modalDossie) return
@@ -694,6 +697,7 @@ export default function Dossies() {
               onEnviar={enviarResposta}
               onChangeForm={setFormResposta}
               onLimparErro={campo => setErros(e => ({ ...e, [campo]: '' }))}
+              onErroArquivos={msg => setErros(e => ({ ...e, arquivos: msg }))}
             />
           )}
         </AnimatePresence>

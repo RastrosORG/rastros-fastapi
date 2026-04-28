@@ -20,18 +20,36 @@ interface Props {
   onEnviar: () => void
   onChangeForm: (form: FormData) => void
   onLimparErro: (campo: keyof FormData) => void
+  onErroArquivos: (msg: string) => void
 }
 
 export default function ModalRespostaUsuario({
-  nome, form, erros, enviando, onFechar, onEnviar, onChangeForm, onLimparErro
+  nome, form, erros, enviando, onFechar, onEnviar, onChangeForm, onLimparErro, onErroArquivos
 }: Props) {
 
   function handleArquivos(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files)
-      onChangeForm({ ...form, arquivos: [...form.arquivos, ...Array.from(e.target.files!)] })
+    if (!e.target.files) return
+    const novos = Array.from(e.target.files)
+
+    const muiGrande = novos.find(f => f.size > 50 * 1024 * 1024)
+    if (muiGrande) {
+      onErroArquivos(`"${muiGrande.name}" excede o limite de 50 MB.`)
+      e.target.value = ''
+      return
+    }
+
+    if (form.arquivos.length + novos.length > 5) {
+      onErroArquivos('Máximo de 5 arquivos por resposta.')
+      e.target.value = ''
+      return
+    }
+
+    onLimparErro('arquivos')
+    onChangeForm({ ...form, arquivos: [...form.arquivos, ...novos] })
   }
 
   function removerArquivo(index: number) {
+    onLimparErro('arquivos')
     onChangeForm({ ...form, arquivos: form.arquivos.filter((_, i) => i !== index) })
   }
 

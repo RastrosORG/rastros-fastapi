@@ -87,9 +87,10 @@ export function useTimer() {
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (!mountedRef.current) return
-      // Reconnect after 3 seconds
+      // Token inválido/expirado — não tenta reconectar automaticamente
+      if (event.code === 4001) return
       setTimeout(() => {
         if (mountedRef.current && wsRef.current === ws) {
           conectarWS()

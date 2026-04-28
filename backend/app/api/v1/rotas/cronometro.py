@@ -101,6 +101,7 @@ async def websocket_cronometro(
 
     payload = verificar_token(token)
     if payload is None:
+        await websocket.accept()
         await websocket.close(code=4001)
         return
 

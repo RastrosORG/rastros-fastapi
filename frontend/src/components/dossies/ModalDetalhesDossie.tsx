@@ -99,7 +99,7 @@ export default function ModalDetalhesDossie({ dossie: d, onFechar, onAbrirMapa, 
             {/* Descrição completa */}
             <div className="flex flex-col gap-2">
               <p className="text-xs font-mono text-primary/70 tracking-widest uppercase">Descrição do Caso</p>
-              <p className="text-muted-foreground text-sm leading-relaxed">{d.descricao}</p>
+              <p className="text-muted-foreground text-sm leading-relaxed whitespace-pre-wrap break-words">{d.descricao}</p>
             </div>
 
             {/* Metadados */}

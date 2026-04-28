@@ -114,6 +114,9 @@ def criar_resposta(
 ) -> dict:
     _verificar_cronometro(db)
 
+    if len(arquivos) > 5:
+        raise HTTPException(status_code=422, detail="Máximo de 5 arquivos por resposta.")
+
     grupo_id = _get_grupo_do_usuario(usuario_id, db)
 
     dossie = db.query(Dossie).filter(Dossie.id == dossie_id, Dossie.ativo == True).first()
