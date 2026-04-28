@@ -14,6 +14,7 @@ export function useTimer() {
 
   const wsRef = useRef<WebSocket | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
 
   // Referência de tempo: timestamp local e segundos do servidor no momento da última sync
@@ -77,8 +78,15 @@ export function useTimer() {
     const ws = new WebSocket(`${WS_BASE}/cronometro/ws?token=${token}`)
     wsRef.current = ws
 
+    ws.onopen = () => {
+      pingRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send('ping')
+      }, 25000)
+    }
+
     ws.onmessage = (event) => {
       if (!mountedRef.current) return
+      if (event.data === 'pong') return
       try {
         const data = JSON.parse(event.data) as CronometroEstado
         sincronizarEstado(data)
@@ -88,6 +96,7 @@ export function useTimer() {
     }
 
     ws.onclose = (event) => {
+      if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null }
       if (!mountedRef.current) return
       // Token inválido/expirado — não tenta reconectar automaticamente
       if (event.code === 4001) return
@@ -141,6 +150,7 @@ export function useTimer() {
       mountedRef.current = false
       pararContagem()
       document.removeEventListener('visibilitychange', handleVisibilidade)
+      if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null }
       if (wsRef.current) {
         const ws = wsRef.current
         wsRef.current = null

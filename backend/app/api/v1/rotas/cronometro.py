@@ -116,10 +116,11 @@ async def websocket_cronometro(
     try:
         await websocket.send_json(estado)
 
-        # Mantém a conexão aberta até o cliente desconectar
         while True:
-            await websocket.receive_text()
+            msg = await websocket.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
     except WebSocketDisconnect:
-        gerenciador.desconectar(websocket)
-    except Exception:
+        pass
+    finally:
         gerenciador.desconectar(websocket)

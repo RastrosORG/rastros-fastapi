@@ -224,6 +224,7 @@ async def ws_avaliador(
         db.close()
 
     if not usuario or not usuario.is_avaliador:
+        await websocket.accept()
         await websocket.close(code=4001)
         return
 
@@ -241,8 +242,9 @@ async def ws_avaliador(
 
     try:
         while True:
-            # Canal só recebe — mantém a conexão viva respondendo ao browser
-            await websocket.receive_text()
+            msg = await websocket.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
     except WebSocketDisconnect:
         pass
     finally:
