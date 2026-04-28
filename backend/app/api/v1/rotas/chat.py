@@ -76,6 +76,7 @@ async def ws_grupo(
         usuario = await asyncio.to_thread(_usuario_do_token, token, db)
         if not usuario:
             db.close()
+            await websocket.accept()
             await websocket.close(code=4001)
             return
 
