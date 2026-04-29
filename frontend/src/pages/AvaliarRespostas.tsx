@@ -12,6 +12,7 @@ import {
   listarGruposDoAvaliador,
   listarRespostasGrupo as listarRespostasGrupoAPI,
   avaliarResposta as avaliarRespostaAPI,
+  toggleFavorito as toggleFavoritoAPI,
 } from '../api/respostasApi'
 import type { RespostaAPI } from '../api/respostasApi'
 
@@ -104,6 +105,14 @@ export default function AvaliarRespostas() {
     return () => clearInterval(intervalo)
   }, [])
 
+  function sincronizarFavoritos(dados: Awaited<ReturnType<typeof listarRespostasGrupoAPI>>) {
+    setFavoritos((prev) => {
+      const novo = new Set(prev)
+      dados.forEach((r) => r.favorito ? novo.add(r.id) : novo.delete(r.id))
+      return novo
+    })
+  }
+
   // ── Carrega respostas ao selecionar grupo ─────────────────────
   const carregarRespostasGrupo = useCallback(async (grupoId: string) => {
     if (respostas[grupoId]) return // já carregado — o poll cuida das atualizações
@@ -111,6 +120,7 @@ export default function AvaliarRespostas() {
     try {
       const dados = await listarRespostasGrupoAPI(parseInt(grupoId))
       setRespostas((prev) => ({ ...prev, [grupoId]: dados.map(mapRespostaAPI) }))
+      sincronizarFavoritos(dados)
     } finally {
       setCarregandoRespostas(false)
     }
@@ -123,6 +133,7 @@ export default function AvaliarRespostas() {
       try {
         const dados = await listarRespostasGrupoAPI(parseInt(grupoSelecionado))
         setRespostas((prev) => ({ ...prev, [grupoSelecionado]: dados.map(mapRespostaAPI) }))
+        sincronizarFavoritos(dados)
       } catch { /* silencia erros de rede no poll silencioso */ }
     }, 20000)
     return () => clearInterval(intervalo)
@@ -178,13 +189,25 @@ export default function AvaliarRespostas() {
   const totalPendentesGlobal = gruposResumo.reduce((acc, g) => acc + g.pendentes, 0)
 
   // ── Favorito toggle ───────────────────────────────────────────
-  function toggleFavorito(e: React.MouseEvent, id: number) {
+  async function toggleFavorito(e: React.MouseEvent, id: number) {
     e.stopPropagation()
+    // Update otimista — reverte se a API falhar
     setFavoritos((prev) => {
       const novo = new Set(prev)
-      novo.has(id) ? novo.delete(id) : novo.add(id)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
       return novo
     })
+    try {
+      await toggleFavoritoAPI(id)
+    } catch {
+      setFavoritos((prev) => {
+        const novo = new Set(prev)
+        if (novo.has(id)) novo.delete(id)
+        else novo.add(id)
+        return novo
+      })
+    }
   }
 
   // ── Avaliar / corrigir ────────────────────────────────────────

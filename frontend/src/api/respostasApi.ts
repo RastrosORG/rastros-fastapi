@@ -23,6 +23,7 @@ export interface RespostaAPI {
   dossie_id: number
   dossie_nome: string
   status: 'pendente' | 'aprovada' | 'aprovada_parcial' | 'rejeitada'
+  favorito: boolean
   criado_em: string
   arquivos: ArquivoRespostaAPI[]
   avaliacao: AvaliacaoAPI | null
@@ -80,6 +81,11 @@ export async function listarGruposDoAvaliador(): Promise<GrupoResumoPendentesAPI
 
 export async function listarRespostasGrupo(grupoId: number): Promise<RespostaAPI[]> {
   const res = await api.get<RespostaAPI[]>(`/respostas/grupo/${grupoId}`)
+  return res.data
+}
+
+export async function toggleFavorito(respostaId: number): Promise<RespostaAPI> {
+  const res = await api.patch<RespostaAPI>(`/respostas/${respostaId}/favoritar`)
   return res.data
 }
 

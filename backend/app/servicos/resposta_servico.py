@@ -91,6 +91,7 @@ def _serializar_resposta(r: Resposta) -> dict:
         "dossie_id": r.dossie_id,
         "dossie_nome": r.dossie.nome if r.dossie else "",
         "status": r.status,
+        "favorito": bool(r.favorito),
         "criado_em": r.criado_em,
         "arquivos": [
             {"id": a.id, "nome_arquivo": a.nome_arquivo, "url_s3": a.url_s3}
@@ -276,4 +277,24 @@ def avaliar_resposta(
 
     db.commit()
     # Recarrega com eager load — db.refresh só recarrega escalares, não relações
+    return _serializar_resposta(_carregar_resposta(resposta_id, db))
+
+
+def favoritar_resposta(resposta_id: int, avaliador_id: int, db: Session) -> dict:
+    r = db.query(Resposta).filter(Resposta.id == resposta_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Resposta não encontrada.")
+
+    grupo = db.query(Grupo).filter(
+        Grupo.id == r.grupo_id,
+        Grupo.avaliador_id == avaliador_id,
+    ).first()
+    if not grupo:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não é o avaliador do grupo dessa resposta."
+        )
+
+    r.favorito = not r.favorito  # type: ignore[assignment]
+    db.commit()
     return _serializar_resposta(_carregar_resposta(resposta_id, db))

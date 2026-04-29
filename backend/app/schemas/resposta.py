@@ -28,6 +28,7 @@ class RespostaOutput(BaseModel):
     dossie_id: int
     dossie_nome: str
     status: str
+    favorito: bool = False
     criado_em: datetime
     arquivos: List[ArquivoRespostaOutput]
     avaliacao: Optional[AvaliacaoOutput] = None

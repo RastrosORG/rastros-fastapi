@@ -66,6 +66,15 @@ def respostas_do_grupo(
     return resposta_servico.listar_respostas_grupo(grupo_id, int(avaliador.id), db)
 
 
+@router.patch("/{resposta_id}/favoritar", response_model=RespostaOutput)
+def favoritar(
+    resposta_id: int,
+    db: Session = Depends(get_db),
+    avaliador=Depends(get_avaliador),
+):
+    return resposta_servico.favoritar_resposta(resposta_id, int(avaliador.id), db)
+
+
 @router.patch("/{resposta_id}/avaliar", response_model=RespostaOutput)
 def avaliar(
     resposta_id: int,

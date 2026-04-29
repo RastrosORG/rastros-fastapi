@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -22,6 +22,8 @@ class Resposta(Base):
     dossie_id = Column(Integer, ForeignKey("dossies.id"), nullable=False)
     status = Column(String(20), default="pendente", nullable=False)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    favorito = Column(Boolean, default=False, nullable=False)
 
     # Avaliação
     comentario_avaliacao = Column(Text, nullable=True)
